@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/head.jpg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/head.jpg">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/head.jpg">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"home.ustc.edu.cn","root":"/","scheme":"Gemini","version":"8.0.0-rc.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="本文介绍了蓝牙中设备发现与连接的机制。包括 BR&#x2F;EDR， BLE 4.2 和 BLE 5.0。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="蓝牙中设备发现与连接">
+<meta property="og:url" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/index.html">
+<meta property="og:site_name" content="Baohd">
+<meta property="og:description" content="本文介绍了蓝牙中设备发现与连接的机制。包括 BR&#x2F;EDR， BLE 4.2 和 BLE 5.0。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/txrx_cycle_of_transceiver_in_page_mode.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/paging_1.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/paging_2.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/inquiry_response_1.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/inquiry_response_2.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/adv_interval.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/adv_no_req.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/adv_scan_req.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/adv_conn_req.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/ble_conn_master.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/ble_conn_slave.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/extended_adv_offset.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/extended_adv_overlap_1.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/extended_adv_overlap_2.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/periodic_adv.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/adv_50.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/connectable_directed_adv_ext.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/non_scannable_non_connectable_undirected_adv_ext.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/scannable_undirected_adv_ext.png">
+<meta property="article:published_time" content="2020-12-17T05:21:24.000Z">
+<meta property="article:modified_time" content="2021-09-25T08:51:17.458Z">
+<meta property="article:author" content="Baohd&lt;br&gt;鲍宏德">
+<meta property="article:tag" content="蓝牙">
+<meta property="article:tag" content="协议">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/txrx_cycle_of_transceiver_in_page_mode.png">
+
+<link rel="canonical" href="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>蓝牙中设备发现与连接 | Baohd</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line toggle-line-first"></span>
+        <span class="toggle-line toggle-line-middle"></span>
+        <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Baohd</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">宏博江山八万里 德馨古今九百川</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签<span class="badge">5</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类<span class="badge">3</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">6</span></a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://home.ustc.edu.cn/~baohd/2020/12/17/Bluetooth-disc-conn/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/head.jpg">
+      <meta itemprop="name" content="Baohd<br>鲍宏德">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Baohd">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          蓝牙中设备发现与连接
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2020-12-17 13:21:24" itemprop="dateCreated datePublished" datetime="2020-12-17T13:21:24+08:00">2020-12-17</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2021-09-25 16:51:17" itemprop="dateModified" datetime="2021-09-25T16:51:17+08:00">2021-09-25</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E9%80%9A%E4%BF%A1/" itemprop="url" rel="index"><span itemprop="name">通信</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>本文介绍了蓝牙中设备发现与连接的机制。包括 BR/EDR， BLE 4.2 和 BLE 5.0。</p>
+<a id="more"></a>
+
+<h1 id="BR-EDR"><a href="#BR-EDR" class="headerlink" title="BR/EDR"></a>BR/EDR</h1><h2 id="Page"><a href="#Page" class="headerlink" title="Page"></a>Page</h2><h3 id="Role"><a href="#Role" class="headerlink" title="Role"></a>Role</h3><ul>
+<li><strong>master</strong> : 表示 paging 设备，连接后作为 master。</li>
+<li><strong>slave</strong> : 表示 page scanning 设备，连接后作为 slave。</li>
+<li><strong>master slave 已经被 Bluetooth SIG 弃用，由 Central Peripheral 取代， 本文暂不更改。</strong></li>
+</ul>
+<h3 id="Page-substates"><a href="#Page-substates" class="headerlink" title="Page substates"></a>Page substates</h3><table>
+<thead>
+<tr>
+<th align="left">Step</th>
+<th align="left">Message</th>
+<th align="left">Packet Type</th>
+<th align="left">Direction</th>
+<th align="left">Hopping Sequence</th>
+<th align="left">Access Code and Clock</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">1</td>
+<td align="left">Page</td>
+<td align="left">ID</td>
+<td align="left">Master to slave</td>
+<td align="left">Page</td>
+<td align="left">Slave</td>
+</tr>
+<tr>
+<td align="left">2</td>
+<td align="left">First slave page response</td>
+<td align="left">ID</td>
+<td align="left">Slave to master</td>
+<td align="left">Page response</td>
+<td align="left">Slave</td>
+</tr>
+<tr>
+<td align="left">3</td>
+<td align="left">Master page response</td>
+<td align="left">FHS</td>
+<td align="left">Master to slave</td>
+<td align="left">Page</td>
+<td align="left">Slave</td>
+</tr>
+<tr>
+<td align="left">4</td>
+<td align="left">Second slave page response</td>
+<td align="left">ID</td>
+<td align="left">Slave to master</td>
+<td align="left">Page response</td>
+<td align="left">Slave</td>
+</tr>
+<tr>
+<td align="left">5</td>
+<td align="left">1st packet master</td>
+<td align="left">POLL</td>
+<td align="left">Master to slave</td>
+<td align="left">Channel</td>
+<td align="left">Master</td>
+</tr>
+<tr>
+<td align="left">6</td>
+<td align="left">1st packet slave</td>
+<td align="left">Any type</td>
+<td align="left">Slave to master</td>
+<td align="left">Channel</td>
+<td align="left">Master</td>
+</tr>
+</tbody></table>
+<h3 id="paging-procedure"><a href="#paging-procedure" class="headerlink" title="paging procedure"></a>paging procedure</h3><ol>
+<li>Page<blockquote>
+<p>master 需要发送 page 包并与 slave 在同一信道上才能完成 paging 操作，master 会每秒跳频 3200 次，即每个 slot 两次，每次耗时 68 μs， 第一次在 <code>CLK0 = 0</code> 的时候开始， 第二次在 <code>CLK0 = 1</code> 的时候开始。</p>
+<p>在每个 TX slot，master 需要在两个不同频段（<code>f(k)</code> 和 <code>f(k+1)</code>）发送 ID 包。在每个 RX slot，master 需要在 <code>f&#39;(k)</code> 和 <code>f&#39;(k+1)</code> 上监听回复, 并留出 ±10μs 的误差时间。</p>
+<p><img src="txrx_cycle_of_transceiver_in_page_mode.png" alt="txrx_cycle_of_transceiver_in_page_mode"></p>
+</blockquote>
+<center style="color:#C0C0C0;">图 1.page </center><br>
+
+
+</li>
+</ol>
+<ol start="2">
+<li>First slave page response<blockquote>
+<p>当 slave 收到 master 的 page 包， 则会在收包开始 625μs 后发送 first slave page response，并在发包开始 312.5μs 后（提前 10μs 的误差时间）开始接收 master page response。</p>
+<p>若 slave 收到的是第一个 page 包，则其会在发包开始 625μs 后收到 master page response，如图 2；否则会在发包开始 312.5μs 后收到，如图 3。</p>
+</blockquote>
+</li>
+<li>Master page response<blockquote>
+<p>当 mster 收到 first slave page response， 会在下一个 slot 的开始处发送 Master page response。并在之后的一个 slot 处开始接收 second slave page response。</p>
+</blockquote>
+</li>
+<li>Second slave page response<blockquote>
+<p>当 slave 收到 master page response, 会在收包开始 625μs 后发送 second slave page response。并切换至 master access code 和 basic channel hopping sequence。在此之前双方使用的是 slave access code 和 page hopping sequence。</p>
+</blockquote>
+</li>
+<li>1st packet master<blockquote>
+<p>当 master 收到 second slave page response 后，会切换至 master access code 和 basic channel hopping sequence，并在下一个 slot 发送 1st packet master。</p>
+</blockquote>
+</li>
+<li>1st packet slave<blockquote>
+<p>当 slave 收到 1st packet master 后，会在下一个 slot 发送 1st packet slave。</p>
+</blockquote>
+</li>
+</ol>
+<p><img src="paging_1.png" alt="paging_1"></p>
+<center style="color:#C0C0C0;">图 2.paging 1 </center><br>
+
+<p><img src="paging_2.png" alt="paging_2"></p>
+<center style="color:#C0C0C0;">图 3.paging 2 </center><br>
+
+<h2 id="Inquiry"><a href="#Inquiry" class="headerlink" title="Inquiry"></a>Inquiry</h2><h3 id="Role-1"><a href="#Role-1" class="headerlink" title="Role"></a>Role</h3><ul>
+<li><strong>master</strong> : 表示 inquiring 设备。</li>
+<li><strong>slave</strong> : 表示 inquiry scanning 设备。</li>
+<li><strong>master slave 已经被 Bluetooth SIG 弃用，由 Central Peripheral 取代， 本文暂不更改。</strong></li>
+</ul>
+<h3 id="Inquiry-substates"><a href="#Inquiry-substates" class="headerlink" title="Inquiry substates"></a>Inquiry substates</h3><table>
+<thead>
+<tr>
+<th align="left">Step</th>
+<th align="left">Message</th>
+<th align="left">Packet Type</th>
+<th align="left">Direction</th>
+<th align="left">Hopping Sequence</th>
+<th align="left">Access Code and Clock</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">1</td>
+<td align="left">inquiry</td>
+<td align="left">ID</td>
+<td align="left">Master to slave</td>
+<td align="left">inquiry</td>
+<td align="left">inquiry</td>
+</tr>
+<tr>
+<td align="left">2</td>
+<td align="left">inquiry response</td>
+<td align="left">FHS</td>
+<td align="left">Slave to master</td>
+<td align="left">inquiry response</td>
+<td align="left">inquiry</td>
+</tr>
+<tr>
+<td align="left">3</td>
+<td align="left">extended inquiry response</td>
+<td align="left">DM1/DM3/DM5<br>DH1/DH3/DH5</td>
+<td align="left">Slave to master</td>
+<td align="left">inquiry response*</td>
+<td align="left">inquiry</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>* The extended inquiry response packet is sent on the same frequency as the inquiry response (FHS) packet.</p>
+</blockquote>
+<h3 id="Inquiring-procedure"><a href="#Inquiring-procedure" class="headerlink" title="Inquiring procedure"></a>Inquiring procedure</h3><ol>
+<li>Inquiry<blockquote>
+<p>同 page</p>
+</blockquote>
+</li>
+<li>Inquiry response<blockquote>
+<p>当 slave 收到 master 的 inquiry 包，则会在收包开始 625μs 后发送 inquiry response。里面包含了一些被 paging 的必要信息。</p>
+</blockquote>
+</li>
+<li>extended inquiry response<blockquote>
+<p>如果 slave 要发 extended inquiry response 包，则会在收包开始 1250μs 后发送。该包的发送频段和 inquiry response 相同。</p>
+</blockquote>
+</li>
+</ol>
+<p><img src="inquiry_response_1.png" alt="inquiry_1"></p>
+<center style="color:#C0C0C0;">图 3.inquiry 1 </center><br>
+
+<p><img src="inquiry_response_2.png" alt="inquiry_2"></p>
+<center style="color:#C0C0C0;">图 4.inquiry 2 </center><br>
+
+
+<h1 id="BLE-4-2"><a href="#BLE-4-2" class="headerlink" title="BLE 4.2"></a>BLE 4.2</h1><h2 id="ADV"><a href="#ADV" class="headerlink" title="ADV"></a>ADV</h2><h3 id="ADV-channel"><a href="#ADV-channel" class="headerlink" title="ADV channel"></a>ADV channel</h3><p>ADV 使用 37(k = 0),38(k = 12),39(k = 39) 三个信道。</p>
+<blockquote>
+<p>f=2402+k*2 MHz, k=0, … ,39</p>
+</blockquote>
+<h3 id="ADV-interval"><a href="#ADV-interval" class="headerlink" title="ADV interval"></a>ADV interval</h3><p>ADV 为了提高时间上的随机性，保证被 scan 到的概率，增加了<code>随机 Delay</code>的机制。延迟时间为 0ms 至 10ms 间的随机值。<br><img src="adv_interval.png" alt="adv_interval"></p>
+<center style="color:#C0C0C0;">图 5.ADV interval </center><br>
+
+<h3 id="ADV-PDUs"><a href="#ADV-PDUs" class="headerlink" title="ADV PDUs"></a>ADV PDUs</h3><ol>
+<li>ADV_IND<blockquote>
+<p>Payload 部分包括 6 octects 的地址和 0-31 octets 的广播数据。</p>
+</blockquote>
+</li>
+<li>ADV_DIRECT_IND<blockquote>
+<p>Payload 部分包括 6 octects 的地址和 6 octets 的目标地址。</p>
+</blockquote>
+</li>
+<li>ADV_NONCONN_IND<blockquote>
+<p>Payload 部分包括 6 octects 的地址和 0-31 octets 的广播数据。</p>
+</blockquote>
+</li>
+<li>ADV_SCAN_IND<blockquote>
+<p>Payload 部分包括 6 octects 的地址和 0-31 octets 的广播数据。</p>
+</blockquote>
+</li>
+</ol>
+<h3 id="ADV-event-type"><a href="#ADV-event-type" class="headerlink" title="ADV event type"></a>ADV event type</h3><table>
+<thead>
+<tr>
+<th align="left">Advertising Event Type</th>
+<th align="left">PDU used in this advertising event type</th>
+<th align="left">Allowable response PDUs for SCAN_REQ</th>
+<th align="left">Allowable response PDUs for CONNECT_REQ</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">Connectable Undirected Event</td>
+<td align="left">ADV_IND</td>
+<td align="left">YES</td>
+<td align="left">YES</td>
+</tr>
+<tr>
+<td align="left">Connectable Directed Event</td>
+<td align="left">ADV_DIRECT_IND</td>
+<td align="left">NO</td>
+<td align="left">YES*</td>
+</tr>
+<tr>
+<td align="left">Non-connectable Undirected Event</td>
+<td align="left">ADV_NONCONN_IND</td>
+<td align="left">NO</td>
+<td align="left">NO</td>
+</tr>
+<tr>
+<td align="left">Scannable Undirected Event</td>
+<td align="left">ADV_SCAN_IND</td>
+<td align="left">YES</td>
+<td align="left">NO</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>*  Only the correctly addressed initiator may respond.</p>
+</blockquote>
+<ol>
+<li><p>Connectable Undirected Event</p>
+<blockquote>
+<p>设备发送两个 ADV 的时间间隔需要小于等于 10ms。</p>
+<p>设备发送 ADV_IND 后需要在同一个信道监听 SCAN_REQ 和 CONNECT_REQ。</p>
+<p>如果听到一个包含自己地址的 SCAN_REQ， 设备需要在同一信道上回复 SCAN_RSP。并进入下一个可用的广播信道或者结束广播事件，如图 7。</p>
+<p>如果听到一个包含自己地址的 CONNECT_REQ，设备需要退出广播状态并进入连接状态，如图 8。</p>
+<p>否者设备需要进入下一个可用的广播信道或者结束广播事件，如图 6。</p>
+<p><img src="adv_no_req.png" alt="adv_no_req"></p>
+<center style="color:#C0C0C0;">图 6.ADV without request </center><br>
+
+<p><img src="adv_scan_req.png" alt="adv_scan_req"></p>
+<center style="color:#C0C0C0;">图 7.ADV with scan request </center><br>
+
+<p><img src="adv_conn_req.png" alt="adv_conn_req"></p>
+<center style="color:#C0C0C0;">图 8.ADV with connect request </center><br>
+</blockquote>
+</li>
+<li><p>Connectable Directed Event</p>
+<blockquote>
+<ul>
+<li>Low Duty Cycle Directed Advertising<ul>
+<li>设备发送两个 ADV 的时间间隔需要小于等于 10ms。</li>
+</ul>
+</li>
+<li>High Duty Cycle Directed Advertising<ul>
+<li>设备发送两个相同信道上的 ADV 的时间间隔需要小于等于 3.75ms。</li>
+<li>设备需要在 1.28s 内退出该状态。</li>
+</ul>
+</li>
+</ul>
+<p>设备需要忽略收到的 SCAN_REQ 和非指定设备的 CONNECT_REQ。</p>
+<p>其余行为同 Connectable Undirected Event。</p>
+</blockquote>
+</li>
+<li><p>Non-connectable Undirected Event</p>
+<blockquote>
+<p>设备发送 ADV_NONCONN_IND 后，不进行监听操作就进入下一个可用的广播信道或者结束广播事件。</p>
+<p>其余行为同 Connectable Undirected Event。</p>
+</blockquote>
+</li>
+<li><p>Scannable Undirected Event</p>
+<blockquote>
+<p>设备需要忽略收到的 CONNECT_REQ。</p>
+<p>其余行为同 Connectable Undirected Event。</p>
+</blockquote>
+</li>
+</ol>
+<h2 id="Scan"><a href="#Scan" class="headerlink" title="Scan"></a>Scan</h2><h3 id="Interval-amp-Window"><a href="#Interval-amp-Window" class="headerlink" title="Interval &amp; Window"></a>Interval &amp; Window</h3><p>设备需要在每个 Interval 上监听广播，时长为 Window。</p>
+<p>在每个 Window，设备需要在不同的广播信道进行监听。</p>
+<h3 id="Scan-PDUs"><a href="#Scan-PDUs" class="headerlink" title="Scan PDUs"></a>Scan PDUs</h3><ol>
+<li>SCAN_REQ<blockquote>
+<p>Payload 部分包括 6 octects 的 scanner’s device address 和 6 octets 的 advertiser’s device address。</p>
+</blockquote>
+</li>
+<li>SCAN_RSP<blockquote>
+<p>Payload 部分包括 6 octects 的地址和 0-31 octets 的广播数据。</p>
+</blockquote>
+</li>
+</ol>
+<h3 id="passive"><a href="#passive" class="headerlink" title="passive"></a>passive</h3><p>设备只收广播包，不发送任何包。</p>
+<h3 id="active"><a href="#active" class="headerlink" title="active"></a>active</h3><p>设备根据收到的广播包，决定是否发送 SCAN_REQ。只有收到 ADV_IND 和 ADV_SCAN_IND 时才可能会发送。<br>设备至少对每个符合条件的广播者放松一个 SCAN_REQ， 若没有收到 SCAN_RSP，则应该继续发送。<br>为了防止重复收到同一个设备的 SCAN_RSP，采用 <code>backoff procedure</code> 机制。</p>
+<h2 id="Initiating"><a href="#Initiating" class="headerlink" title="Initiating"></a>Initiating</h2><p>设备收到 ADV_IND 或者目标地址是自己的 ADV_DIRECT_IND， 则会发送 CONNECT_REQ， 并且退出 Initiating state 进入 Connection state。</p>
+<h3 id="Initiating-PDUs"><a href="#Initiating-PDUs" class="headerlink" title="Initiating PDUs"></a>Initiating PDUs</h3><ol>
+<li>CONNECT_IND<blockquote>
+<p>Payload 部分包括 6 octects 的 scanner’s device address 和 6 octets 的 advertiser’s device address，以及 22 octets 的 LLData。<br>LLData 中包含了用于连接的 WinSize, WinOffset, Interval, Latency, Timeout 等参数。</p>
+</blockquote>
+</li>
+</ol>
+<h2 id="Connection"><a href="#Connection" class="headerlink" title="Connection"></a>Connection</h2><p>当 initiator 发送 CONNECT_REQ 后，会作为 master 进入 Connection state，如图 9。</p>
+<p>当 advertiser 收到 CONNECT_REQ 后，会作为 slave 进入 Connection state，如图 10。</p>
+<p><em>* \</em> master slave 已经被 Bluetooth SIG 弃用，由 Central Peripheral 取代， 本文暂不更改。**</p>
+<p>当进入 Connection state 后， 该连接则被认为被 <code>created</code>。</p>
+<p>当成功收到对方的连接包（<code>data channel packet</code>）后，该连接才被认为被 <code>established</code>。</p>
+<p><code>connection is created</code> 和 <code>connection is established</code> 的唯一区别是 <code>connection supervision timeout</code> 不同，前者为 6 个 interval，后者为较大值。</p>
+<p><img src="ble_conn_master.png" alt="ble_conn_master"></p>
+<center style="color:#C0C0C0;">图 9.Master connection setup </center><br>
+
+<p><img src="ble_conn_slave.png" alt="ble_conn_slave"></p>
+<center style="color:#C0C0C0;">图 10.Slave connection setup </center><br>
+
+<h1 id="BLE-5-0"><a href="#BLE-5-0" class="headerlink" title="BLE 5.0"></a>BLE 5.0</h1><h2 id="ADV-1"><a href="#ADV-1" class="headerlink" title="ADV"></a>ADV</h2><h3 id="ADV-channel-1"><a href="#ADV-channel-1" class="headerlink" title="ADV channel"></a>ADV channel</h3><ol>
+<li>primary advertising channel<blockquote>
+<p>ADV 使用 37(k = 0),38(k = 12),39(k = 39) 三个信道。<br>f=2402+k*2 MHz, k=0, … ,39</p>
+</blockquote>
+</li>
+<li>secondary advertising channel<blockquote>
+<p>可在任意信道，由上级广播指定。</p>
+</blockquote>
+</li>
+</ol>
+<h3 id="ADV-events-amp-Externded-ADV-events"><a href="#ADV-events-amp-Externded-ADV-events" class="headerlink" title="ADV events &amp; Externded ADV events"></a>ADV events &amp; Externded ADV events</h3><ol>
+<li>ADV events<blockquote>
+<p>同 BLE 4.2</p>
+</blockquote>
+</li>
+<li>Externded ADV events<blockquote>
+<p>次广播的开始时间，信道和使用的 PHY 等由上级广播指定，如图 11。<br>Externded ADV events 和对应的 ADV events 同时开始。在最后一个 PDU 后结束， 如图 12。<br>auxiliary advertising segments 在 AUX_ADV_IND 发送处开始，在最后一个 PDU 后结束，如图 13。<br>多个 Externded ADV events 可能会相互重叠，因为多个 <code>ADV_EXT_IND</code> 可以指向同一个 <code>AUX_ADV_IND</code>，如图 12；或者 另一个 ADV 插在了 <code>ADV_EXT_IND</code> 和 <code>AUX_ADV_IND</code> 之间，如图 13。</p>
+</blockquote>
+</li>
+</ol>
+<p><img src="extended_adv_offset.png" alt="extended_adv_offset"></p>
+<center style="color:#C0C0C0;">图 11.Aux Offset transmission window </center><br>
+
+<p><img src="extended_adv_overlap_1.png" alt="extended_adv_overlap_1"></p>
+<center style="color:#C0C0C0;">图 12.Example of overlapping extended advertising events </center><br>
+
+<p><img src="extended_adv_overlap_2.png" alt="extended_adv_overlap_2"></p>
+<center style="color:#C0C0C0;">图 13.Example of overlapping extended advertising events 2 </center><br>
+
+
+<h3 id="ADV-PDUs-1"><a href="#ADV-PDUs-1" class="headerlink" title="ADV PDUs"></a>ADV PDUs</h3><ol>
+<li>ADV_IND<blockquote>
+<p>Payload 部分包括 6 octects 的地址和 0-31 octets 的广播数据。</p>
+</blockquote>
+</li>
+<li>ADV_DIRECT_IND<blockquote>
+<p>Payload 部分包括 6 octects 的地址和 6 octets 的目标地址。</p>
+</blockquote>
+</li>
+<li>ADV_NONCONN_IND<blockquote>
+<p>Payload 部分包括 6 octects 的地址和 0-31 octets 的广播数据。</p>
+</blockquote>
+</li>
+<li>ADV_SCAN_IND<blockquote>
+<p>Payload 部分包括 6 octects 的地址和 0-31 octets 的广播数据。</p>
+</blockquote>
+</li>
+<li>ADV_EXT_IND<blockquote>
+<p>使用 <code>Common Extended Advertising Payload Format</code>。<br>可用在除 <code>connectable and scannable undirected</code> 之外的所有 advertising events。<br>其中包含 3 octets 的 <code>AUX Ptr</code>，<code>AUX Ptr</code> 指定了次广播的信道，时间，使用的 PHY 等信息。</p>
+</blockquote>
+</li>
+<li>AUX_ADV_IND<blockquote>
+<p>格式上与 <code>ADV_EXT_IND</code> 相同。</p>
+</blockquote>
+</li>
+<li>AUX_SYNC_IND<blockquote>
+<p>格式上与 <code>ADV_EXT_IND</code> 相同。<br>用作周期性广播，如图 14 。<br>同一个周期性广播的两个 event 不能重叠。</p>
+</blockquote>
+</li>
+<li>AUX_CHAIN_IND<blockquote>
+<p>格式上与 <code>ADV_EXT_IND</code> 相同。<br>用作 <code>hold additional AdvData</code>。<br>上级广播为 <code>AUX_ADV_IND</code>, <code>AUX_SYNC_IND</code>, <code>AUX_SCAN_RSP</code> 或者另一个 <code>AUX_CHAIN_IND</code>。</p>
+</blockquote>
+</li>
+</ol>
+<p><img src="periodic_adv.png" alt="periodic_adv"></p>
+<center style="color:#C0C0C0;">图 14.Periodic advertising events </center><br>
+
+<h3 id="ADV-event-type-1"><a href="#ADV-event-type-1" class="headerlink" title="ADV event type"></a>ADV event type</h3><p><img src="adv_50.png" alt="adv_50"></p>
+<center style="color:#C0C0C0;">图 15.Advertising event types </center><br>
+
+<ol>
+<li><p>connectable and scannable undirected event</p>
+<blockquote>
+<p>同 BLE 4.2 的 Connectable Undirected Event</p>
+</blockquote>
+</li>
+<li><p>connectable directed event</p>
+<blockquote>
+<p>可能会使用 ADV_DIRECT_IND 或者 ADV_EXT_IND 中的一个。</p>
+<p>使用 ADV_DIRECT_IND 时和 BLE 4.2 的 Connectable Directed Event 相同。</p>
+<p>当使用 LE Coded PHY 时，必须选择 ADV_EXT_IND。</p>
+<p>ADV_EXT_IND 中的 AUX Ptr 字段指向 AUX_ADV_IND，AUX_ADV_IND 中包含了广播地址和目标地址。</p>
+<p>设备需要在发送 AUX_ADV_IND 后监听同一广播次信道上的 AUX_CONNECT_REQ。若收到来自目标地址的 AUX_CONNECT_REQ， 则会在同一广播次信道上回复 AUX_CONNECT_RSP。</p>
+<p><img src="connectable_directed_adv_ext.png" alt="connectable_directed_adv_ext"></p>
+<center style="color:#C0C0C0;">图 16.Connectable directed advertising event using ADV_EXT_IND PDUs </center><br>
+</blockquote>
+</li>
+<li><p>non-connectable and non-scannable undirected event</p>
+<blockquote>
+<p>可能会使用 ADV_NONCONN_IND 或者 ADV_EXT_IND 中的一个。</p>
+<p>使用 ADV_NONCONN_IND 时和 BLE 4.2 的 Non-connectable Undirected Event 相同。</p>
+<p>ADV_EXT_IND 包中不包含广播地址，其中的 AUX Ptr 字段指向 AUX_ADV_IND;或者 ADV_EXT_IND 包中包含广播地址，不包含 AUX Ptr 并没有 AUX_ADV_IND。</p>
+<p>AUX_ADV_IND 后可以跟 AUX_CHAIN_IND，如图 17。</p>
+<p><img src="non_scannable_non_connectable_undirected_adv_ext.png" alt="non_scannable_non_connectable_undirected_adv_ext"></p>
+<center style="color:#C0C0C0;">图 17.Non-connectable and non-scannable undirected advertising event </center><br>
+</blockquote>
+</li>
+<li><p>scannable undirected event</p>
+<blockquote>
+<p>可能会使用 ADV_SCAN_IND 或者 ADV_EXT_IND 中的一个。</p>
+<p>使用 ADV_SCAN_IND 时和 BLE 4.2 的 Scannable Undirected Event 相同。</p>
+<p>ADV_EXT_IND 包中不包含广播地址，其中的 AUX Ptr 字段指向 AUX_ADV_IND。</p>
+<p>设备需要在发送 AUX_ADV_IND 后监听同一广播次信道上的  AUX_SCAN_REQ。若收 AUX_SCAN_REQ， 则会在同一广播次信道上回复 AUX_SCAN_RSP。</p>
+<p><img src="scannable_undirected_adv_ext.png" alt="scannable_undirected_adv_ext"></p>
+<center style="color:#C0C0C0;">图 18.Scannable undirected advertising event with ADV_EXT_IND PDUs </center><br>
+</blockquote>
+</li>
+<li><p>connectable undirected event</p>
+<blockquote>
+<p>除了不指定目标地址外，其余的和 BLE 5.0 connectable directed event 中的使用 ADV_EXT_IND 部分相同。<br>不能像 BLE 4.2 一样单纯的使用非 Common Extended Advertising Payload Format 的包。</p>
+</blockquote>
+</li>
+<li><p>non-connectable and non-scannable directed event</p>
+<blockquote>
+<p>除了指定目标地址外，其余的和 BLE 5.0 non-connectable and non-scannable undirected event 中的使用 ADV_EXT_IND 部分相同。<br>不能像 BLE 4.2 一样单纯的使用非 Common Extended Advertising Payload Format 的包。</p>
+</blockquote>
+</li>
+<li><p>scannable directed event</p>
+<blockquote>
+<p>除了指定目标地址外，其余的和 BLE 5.0 scannable undirected event 中的使用 ADV_EXT_IND 部分相同。<br>不能像 BLE 4.2 一样单纯的使用非 Common Extended Advertising Payload Format 的包。</p>
+</blockquote>
+</li>
+</ol>
+<h3 id="ADV-Sets"><a href="#ADV-Sets" class="headerlink" title="ADV Sets"></a>ADV Sets</h3><ul>
+<li>ADV Set 为一组相同参数的广播包，可交错发送。设备还可能支持多组不同参数的 ADV Sets。</li>
+<li>ADV Set 由 ADI 域中的 SID 子域区分。</li>
+<li>每个 ADV Set 必须包含至少 31 字节的广播数据。该限制在 Host 第一次指定该 Set 的广播数据或者创建另一个 ADV set 后无效。<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">The guarantee shall no longer apply after the Host first specifies advertising data for that set or creates another advertising set.</span><br></pre></td></tr></table></figure></li>
+<li>如果该 ADV Set 是 scannable，则该 ADV Set 必须包含至少 31 字节的 scan response data。该限制该 ADV Set 为 non-scannable 或者在 Host 第一次指定该 Set 的广播数据或者创建另一个 ADV set 后无效。<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">The guarantee shall no longer apply if the set is made non-scannable or after the Host first specifies scan response data for that set or creates another advertising set.</span><br></pre></td></tr></table></figure></li>
+<li>AdvDataInfo (ADI)<ul>
+<li>用来区分 ADV Sets 和其中的重复广播数据包。</li>
+<li>每个 ADV Set 的 DID 是一个随机值，当 HOST 向 ADV Set 提供一个 advertising data 或者 scan response data， ADI 将会被更新为新的随机值。</li>
+<li>当一个周期性广播加入或者移除，DID 不被强制要求更新，但不更新会导致该周期性广播被扫描者忽略。</li>
+</ul>
+</li>
+</ul>
+<h2 id="Scan-1"><a href="#Scan-1" class="headerlink" title="Scan"></a>Scan</h2><h3 id="Scan-PDUs-1"><a href="#Scan-PDUs-1" class="headerlink" title="Scan PDUs"></a>Scan PDUs</h3><ol>
+<li>SCAN_REQ<blockquote>
+<p>Payload 部分包括 6 octects 的 scanner’s device address 和 6 octets 的 advertiser’s device address。</p>
+</blockquote>
+</li>
+<li>SCAN_RSP<blockquote>
+<p>Payload 部分包括 6 octects 的地址和 0-31 octets 的广播数据。</p>
+</blockquote>
+</li>
+<li>AUX_SCAN_REQ<blockquote>
+<p>同 <code>SCAN_REQ</code>。</p>
+</blockquote>
+</li>
+<li>AUX_SCAN_RSP<blockquote>
+<p>使用 <code>Common Extended Advertising Payload Format</code>。</p>
+</blockquote>
+</li>
+</ol>
+<h3 id="passive-1"><a href="#passive-1" class="headerlink" title="passive"></a>passive</h3><p>设备只收广播包，不发送任何包。</p>
+<h3 id="active-1"><a href="#active-1" class="headerlink" title="active"></a>active</h3><p>设备根据收到的广播包，决定是否发送 SCAN_REQ 和 AUX_SCAN_REQ。如图 15。<br>设备至少对每个符合条件的广播者放松一个 SCAN_REQ， 若没有收到 SCAN_RSP，则应该继续发送。<br>为了防止重复收到同一个设备的 SCAN_RSP，采用 <code>backoff procedure</code> 机制。</p>
+<h3 id="Scanning-for-ADV-Set"><a href="#Scanning-for-ADV-Set" class="headerlink" title="Scanning for ADV Set"></a>Scanning for ADV Set</h3><p>可根据收到的 ADV_EXT_IND 中的 ADI 域里的 SID 来区分包是不是来自同一个 ADV Set。</p>
+<h3 id="Scanning-for-periodic-advertisements"><a href="#Scanning-for-periodic-advertisements" class="headerlink" title="Scanning for periodic advertisements"></a>Scanning for periodic advertisements</h3><p>根据 AUX_ADV_IND 中的 SyncInfo 字段判断 advertising synchronization information 是否完整，若完整后则起一个新的状态机跳至 Synchronization State 并接收 AUX_SYNC_IND 和 AUX_CHAIN_IND。旧状态机依旧保持在 Scanning State。</p>
+<h2 id="Initiating-1"><a href="#Initiating-1" class="headerlink" title="Initiating"></a>Initiating</h2><p>设备在主广播信道上进行扫描，并根据收到的包可能会跳至次广播信道进行扫描。</p>
+<p>设备根据收到的包，如图 15, 可能会发送 CONNECT_REQ ，并且退出 Initiating state 进入 Connection state；也可能会发送 AUX_CONNECT_REQ， 并在收到 AUX_CONNECT_RSP 后退出 Initiating state 进入 Connection state。</p>
+<h3 id="Initiating-PDUs-1"><a href="#Initiating-PDUs-1" class="headerlink" title="Initiating PDUs"></a>Initiating PDUs</h3><ol>
+<li><p>CONNECT_IND</p>
+<blockquote>
+<p>Payload 部分包括 6 octects 的 scanner’s device address 和 6 octets 的 advertiser’s device address，以及 22 octets 的 LLData。<br>LLData 中包含了用于连接的 WinSize, WinOffset, Interval, Latency, Timeout 等参数。</p>
+</blockquote>
+</li>
+<li><p>AUX_CONNECT_REQ</p>
+<blockquote>
+<p>同 <code>CONNECT_IND</code>。</p>
+</blockquote>
+</li>
+<li><p>AUX_CONNECT_RSP</p>
+<blockquote>
+<p>使用 <code>Common Extended Advertising Payload Format</code>。</p>
+</blockquote>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E8%93%9D%E7%89%99/" rel="tag"># 蓝牙</a>
+              <a href="/tags/%E5%8D%8F%E8%AE%AE/" rel="tag"># 协议</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/08/25/Nimble-data-path/" rel="prev" title="Nimble 协议栈数据通路">
+      <i class="fa fa-chevron-left"></i> Nimble 协议栈数据通路
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2021/09/25/blog-guide/" rel="next" title="搭建个人博客">
+      搭建个人博客 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#BR-EDR"><span class="nav-number">1.</span> <span class="nav-text">BR&#x2F;EDR</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Page"><span class="nav-number">1.1.</span> <span class="nav-text">Page</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Role"><span class="nav-number">1.1.1.</span> <span class="nav-text">Role</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Page-substates"><span class="nav-number">1.1.2.</span> <span class="nav-text">Page substates</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#paging-procedure"><span class="nav-number">1.1.3.</span> <span class="nav-text">paging procedure</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Inquiry"><span class="nav-number">1.2.</span> <span class="nav-text">Inquiry</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Role-1"><span class="nav-number">1.2.1.</span> <span class="nav-text">Role</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Inquiry-substates"><span class="nav-number">1.2.2.</span> <span class="nav-text">Inquiry substates</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Inquiring-procedure"><span class="nav-number">1.2.3.</span> <span class="nav-text">Inquiring procedure</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#BLE-4-2"><span class="nav-number">2.</span> <span class="nav-text">BLE 4.2</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#ADV"><span class="nav-number">2.1.</span> <span class="nav-text">ADV</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ADV-channel"><span class="nav-number">2.1.1.</span> <span class="nav-text">ADV channel</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ADV-interval"><span class="nav-number">2.1.2.</span> <span class="nav-text">ADV interval</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ADV-PDUs"><span class="nav-number">2.1.3.</span> <span class="nav-text">ADV PDUs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ADV-event-type"><span class="nav-number">2.1.4.</span> <span class="nav-text">ADV event type</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Scan"><span class="nav-number">2.2.</span> <span class="nav-text">Scan</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Interval-amp-Window"><span class="nav-number">2.2.1.</span> <span class="nav-text">Interval &amp; Window</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Scan-PDUs"><span class="nav-number">2.2.2.</span> <span class="nav-text">Scan PDUs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#passive"><span class="nav-number">2.2.3.</span> <span class="nav-text">passive</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#active"><span class="nav-number">2.2.4.</span> <span class="nav-text">active</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Initiating"><span class="nav-number">2.3.</span> <span class="nav-text">Initiating</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Initiating-PDUs"><span class="nav-number">2.3.1.</span> <span class="nav-text">Initiating PDUs</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Connection"><span class="nav-number">2.4.</span> <span class="nav-text">Connection</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#BLE-5-0"><span class="nav-number">3.</span> <span class="nav-text">BLE 5.0</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#ADV-1"><span class="nav-number">3.1.</span> <span class="nav-text">ADV</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ADV-channel-1"><span class="nav-number">3.1.1.</span> <span class="nav-text">ADV channel</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ADV-events-amp-Externded-ADV-events"><span class="nav-number">3.1.2.</span> <span class="nav-text">ADV events &amp; Externded ADV events</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ADV-PDUs-1"><span class="nav-number">3.1.3.</span> <span class="nav-text">ADV PDUs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ADV-event-type-1"><span class="nav-number">3.1.4.</span> <span class="nav-text">ADV event type</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ADV-Sets"><span class="nav-number">3.1.5.</span> <span class="nav-text">ADV Sets</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Scan-1"><span class="nav-number">3.2.</span> <span class="nav-text">Scan</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Scan-PDUs-1"><span class="nav-number">3.2.1.</span> <span class="nav-text">Scan PDUs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#passive-1"><span class="nav-number">3.2.2.</span> <span class="nav-text">passive</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#active-1"><span class="nav-number">3.2.3.</span> <span class="nav-text">active</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Scanning-for-ADV-Set"><span class="nav-number">3.2.4.</span> <span class="nav-text">Scanning for ADV Set</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Scanning-for-periodic-advertisements"><span class="nav-number">3.2.5.</span> <span class="nav-text">Scanning for periodic advertisements</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Initiating-1"><span class="nav-number">3.3.</span> <span class="nav-text">Initiating</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Initiating-PDUs-1"><span class="nav-number">3.3.1.</span> <span class="nav-text">Initiating PDUs</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Baohd<br>鲍宏德"
+      src="/images/head.jpg">
+  <p class="site-author-name" itemprop="name">Baohd<br>鲍宏德</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">6</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/blueMoods" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;blueMoods" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:baohd@mail.ustc.edu.cn" title="E-Mail → mailto:baohd@mail.ustc.edu.cn" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Baohd<br>鲍宏德</span>
+</div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

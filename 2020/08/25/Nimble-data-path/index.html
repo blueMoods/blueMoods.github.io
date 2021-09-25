@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/head.jpg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/head.jpg">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/head.jpg">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"home.ustc.edu.cn","root":"/","scheme":"Gemini","version":"8.0.0-rc.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="NimBLE 是 Apache 基金会下一个开源的蓝牙5.0协议栈，具备完整的 Host 及 Controller 层。资源占用少，支持蓝牙 5.0 特性，也支持 Mesh 等功能。 下面简单分析了 NimBsLE 的数据通路。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nimble 协议栈数据通路">
+<meta property="og:url" content="http://home.ustc.edu.cn/~baohd/2020/08/25/Nimble-data-path/index.html">
+<meta property="og:site_name" content="Baohd">
+<meta property="og:description" content="NimBLE 是 Apache 基金会下一个开源的蓝牙5.0协议栈，具备完整的 Host 及 Controller 层。资源占用少，支持蓝牙 5.0 特性，也支持 Mesh 等功能。 下面简单分析了 NimBsLE 的数据通路。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2020-08-25T03:03:54.000Z">
+<meta property="article:modified_time" content="2021-09-25T08:51:17.458Z">
+<meta property="article:author" content="Baohd&lt;br&gt;鲍宏德">
+<meta property="article:tag" content="蓝牙">
+<meta property="article:tag" content="协议">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://home.ustc.edu.cn/~baohd/2020/08/25/Nimble-data-path/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Nimble 协议栈数据通路 | Baohd</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line toggle-line-first"></span>
+        <span class="toggle-line toggle-line-middle"></span>
+        <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Baohd</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">宏博江山八万里 德馨古今九百川</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签<span class="badge">5</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类<span class="badge">3</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">6</span></a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://home.ustc.edu.cn/~baohd/2020/08/25/Nimble-data-path/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/head.jpg">
+      <meta itemprop="name" content="Baohd<br>鲍宏德">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Baohd">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Nimble 协议栈数据通路
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2020-08-25 11:03:54" itemprop="dateCreated datePublished" datetime="2020-08-25T11:03:54+08:00">2020-08-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2021-09-25 16:51:17" itemprop="dateModified" datetime="2021-09-25T16:51:17+08:00">2021-09-25</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E9%80%9A%E4%BF%A1/" itemprop="url" rel="index"><span itemprop="name">通信</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p><a href="https://github.com/apache/mynewt-nimble" target="_blank" rel="noopener">NimBLE</a> 是 Apache 基金会下一个开源的蓝牙5.0协议栈，具备完整的 Host 及 Controller 层。资源占用少，支持蓝牙 5.0 特性，也支持 Mesh 等功能。</p>
+<p>下面简单分析了 NimBsLE 的数据通路。</p>
+<a id="more"></a>
+<h2 id="目录结构"><a href="#目录结构" class="headerlink" title="目录结构"></a>目录结构</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">* apps              # 使用nimble协议栈实现的蓝牙应用程序</span><br><span class="line">* docs              # nimble协议栈的一些说明文档，后缀为.rst</span><br><span class="line">* ext               # nimble 协议栈使用的加密库</span><br><span class="line">* nimble            # nimble 协议栈代码实现</span><br><span class="line">    * controller    # controller 协议栈实现</span><br><span class="line">    * drives        # 控制器协议栈对蓝牙射频芯片硬件的驱动API原型和实现，因为控制器协议栈与硬件是直接耦合的，所以对不同的芯片，驱动接口的实现不同</span><br><span class="line">    * host          # host 协议栈实现</span><br><span class="line">    * include       # 一些外部提供的API原型，HCI，OS 等</span><br><span class="line">    * transport     # 不同HCI类型对应的HCI的通信API实现</span><br><span class="line">* porting           # nimble 协议栈移植到不同os上所需的适配的API</span><br><span class="line">    * examples      # 移植到 dummy 与 linux 的示例</span><br><span class="line">    * nimble        # nimble 使用的系统相关接口，mem，timer 等</span><br><span class="line">    * npl           # 不同os平台的移植目录</span><br><span class="line">    * target        # 项目自动生成的？？？</span><br><span class="line">* target            # 项目自动生成的？？？</span><br></pre></td></tr></table></figure>
+
+<h2 id="内存的分配和释放"><a href="#内存的分配和释放" class="headerlink" title="内存的分配和释放"></a>内存的分配和释放</h2><p>Nimble 的内存管理采用固定分区分配的方法，即将内存划分成若干个固定大小的块，用户申请的时候分配其满足其大小需求的一个或多个块。</p>
+<p>另一种常用的分配方案为动态分区分配。即需要一个空闲表或者空闲链来记录目前系统中空间的内存区域。在内存分配时，需要查找空间表或空闲链找到一块内存分配给当前进程。</p>
+<p>相对于动态分区分配，固定分区分配有一些优缺点：</p>
+<ul>
+<li>优点<ul>
+<li>内存管理简单，每次分配只需要给用户足够数量的内存块。</li>
+<li>不易碎片化，每个内存块独立，分配给用户的内存块不必连续。</li>
+</ul>
+</li>
+<li>缺点<ul>
+<li>可能造成内存浪费，即使用户申请一个字节的内存，实际分配的也为一整个块。</li>
+<li>数据处理繁琐，多个块物理s上不连续，memcpy 等操作不方便。</li>
+</ul>
+</li>
+</ul>
+<p>下面我们看一下 Nimble 里的具体实现。<code>porting/nimble/include/mem/mem.h</code> 里定义了内存池初始化相关的函数：</p>
+<ul>
+<li><code>mem_malloc_mempool</code> 分配 <code>num_blocks * (block_size 向上取整到 4/8/16 的倍数)</code> 大小的内存。并将其切割成 <code>(block_size 向上取整到 4/8/16 的倍数)</code>大小的块，挂在 mempool 的链表上。</li>
+<li><code>mem_malloc_mempool_ext</code> 同 <code>mem_malloc_mempool</code>，只是多注册里一个回调函数，当 mempool 里的块被释放时会调用该回调函数。</li>
+<li><code>mem_malloc_mbuf_pool</code> 初始化 mempool 后，将其放到 mbuf_pool 里，并将 <code>mbuf_pool-&gt;omp_databuf_len</code> 赋值为 <code>buf_len - sizeof(struct os_mbuf)</code>。</li>
+<li><code>mem_malloc_mbufpkt_pool</code> 同 <code>mem_malloc_mbuf_pool</code>，只是初始化 mempool 的时候把块大小加上了 <code>struct os_mbuf_pkthdr</code> 的大小。</li>
+<li><code>mem_init_mbuf_pool</code> 同 <code>mem_malloc_mbuf_pool</code>，只是由用户给定物理内存，不自动分配。</li>
+</ul>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Memory pool</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">os_mempool</span> &#123;</span></span><br><span class="line">    <span class="comment">/** Size of the memory blocks, in bytes. */</span></span><br><span class="line">    <span class="keyword">uint32_t</span> mp_block_size;</span><br><span class="line">    <span class="comment">/** The number of memory blocks. */</span></span><br><span class="line">    <span class="keyword">uint16_t</span> mp_num_blocks;</span><br><span class="line">    <span class="comment">/** The number of free blocks left */</span></span><br><span class="line">    <span class="keyword">uint16_t</span> mp_num_free;</span><br><span class="line">    <span class="comment">/** The lowest number of free blocks seen */</span></span><br><span class="line">    <span class="keyword">uint16_t</span> mp_min_free;</span><br><span class="line">    <span class="comment">/** Bitmap of OS_MEMPOOL_F_[...] values. */</span></span><br><span class="line">    <span class="keyword">uint8_t</span> mp_flags;</span><br><span class="line">    <span class="comment">/** Address of memory buffer used by pool */</span></span><br><span class="line">    <span class="keyword">uint32_t</span> mp_membuf_addr;</span><br><span class="line">    STAILQ_ENTRY(os_mempool) mp_list; <span class="comment">// Queue head</span></span><br><span class="line">    SLIST_HEAD(,os_memblock);         <span class="comment">// List head</span></span><br><span class="line">    <span class="comment">/** Name for memory block */</span></span><br><span class="line">    <span class="keyword">char</span> *name;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * A mbuf pool from which to allocate mbufs. This contains a pointer to the os</span></span><br><span class="line"><span class="comment"> * mempool to allocate mbufs out of, the total number of elements in the pool,</span></span><br><span class="line"><span class="comment"> * and the amount of "user" data in a non-packet header mbuf. The total pool</span></span><br><span class="line"><span class="comment"> * size, in bytes, should be:</span></span><br><span class="line"><span class="comment"> *  os_mbuf_count * (omp_databuf_len + sizeof(struct os_mbuf))</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">os_mbuf_pool</span> &#123;</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Total length of the databuf in each mbuf.  This is the size of the</span></span><br><span class="line"><span class="comment">     * mempool block, minus the mbuf header</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">uint16_t</span> omp_databuf_len;</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * The memory pool which to allocate mbufs out of</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">os_mempool</span> *<span class="title">omp_pool</span>;</span></span><br><span class="line"></span><br><span class="line">    STAILQ_ENTRY(os_mbuf_pool) omp_next;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">mem_malloc_mempool</span><span class="params">(struct os_mempool *mempool, <span class="keyword">uint16_t</span> num_blocks,</span></span></span><br><span class="line"><span class="function"><span class="params">                       <span class="keyword">uint32_t</span> block_size, <span class="keyword">char</span> *name, <span class="keyword">void</span> **out_buf)</span></span>;</span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">mem_malloc_mempool_ext</span><span class="params">(struct os_mempool_ext *mempool, <span class="keyword">uint16_t</span> num_blocks,</span></span></span><br><span class="line"><span class="function"><span class="params">                           <span class="keyword">uint32_t</span> block_size, <span class="keyword">char</span> *name, <span class="keyword">void</span> **out_buf)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">mem_malloc_mbuf_pool</span><span class="params">(struct os_mempool *mempool,</span></span></span><br><span class="line"><span class="function"><span class="params">                         struct os_mbuf_pool *mbuf_pool, <span class="keyword">uint16_t</span> num_blocks,</span></span></span><br><span class="line"><span class="function"><span class="params">                         <span class="keyword">uint32_t</span> block_size, <span class="keyword">char</span> *name,</span></span></span><br><span class="line"><span class="function"><span class="params">                         <span class="keyword">void</span> **out_buf)</span></span>;</span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">mem_malloc_mbufpkt_pool</span><span class="params">(struct os_mempool *mempool,</span></span></span><br><span class="line"><span class="function"><span class="params">                            struct os_mbuf_pool *mbuf_pool, <span class="keyword">int</span> num_blocks,</span></span></span><br><span class="line"><span class="function"><span class="params">                            <span class="keyword">int</span> block_size, <span class="keyword">char</span> *name,</span></span></span><br><span class="line"><span class="function"><span class="params">                            <span class="keyword">void</span> **out_buf)</span></span>;</span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">mem_init_mbuf_pool</span><span class="params">(<span class="keyword">void</span> *mem, struct os_mempool *mempool,</span></span></span><br><span class="line"><span class="function"><span class="params">                       struct os_mbuf_pool *mbuf_pool, <span class="keyword">int</span> num_blocks,</span></span></span><br><span class="line"><span class="function"><span class="params">                       <span class="keyword">int</span> block_size, <span class="keyword">char</span> *name)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p><code>porting/nimble/include/os/os_mbuf.h</code> 里定义里一些内存分配和释放的函数：</p>
+<ul>
+<li><code>os_mbuf_get</code> 从一个 mbuf_pool 里获取一个块，要求用户将要使用的头信息（leadingspace）大于内存块里的有效大小。</li>
+<li><code>os_mbuf_append</code> 将一段数据拷贝到 mbuf 里，当前内存块大小不够时会自动分配新的内存块并用链表挂在一起。</li>
+<li><code>os_mbuf_free</code> 将一个内存块释放并放回内存池</li>
+<li><code>os_mbuf_free_chain</code> 将一串内存块全部释放并放回内存池</li>
+</ul>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Get an mbuf from the mbuf pool.  The mbuf is allocated, and initialized</span></span><br><span class="line"><span class="comment"> * prior to being returned.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param omp The mbuf pool to return the packet from</span></span><br><span class="line"><span class="comment"> * @param leadingspace The amount of leadingspace to put before the data</span></span><br><span class="line"><span class="comment"> *     section by default.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @return An initialized mbuf on success, and NULL on failure.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function">struct os_mbuf *<span class="title">os_mbuf_get</span><span class="params">(struct os_mbuf_pool *omp, <span class="keyword">uint16_t</span> leadingspace)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Append data onto a mbuf</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param om   The mbuf to append the data onto</span></span><br><span class="line"><span class="comment"> * @param data The data to append onto the mbuf</span></span><br><span class="line"><span class="comment"> * @param len  The length of the data to append</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @return 0 on success, and an error code on failure</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">os_mbuf_append</span><span class="params">(struct os_mbuf *om, <span class="keyword">const</span> <span class="keyword">void</span> *data, <span class="keyword">uint16_t</span> len)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Release a mbuf back to the pool</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param omp The Mbuf pool to release back to</span></span><br><span class="line"><span class="comment"> * @param om  The Mbuf to release back to the pool</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @return 0 on success, -1 on failure</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">os_mbuf_free</span><span class="params">(struct os_mbuf *mb)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Free a chain of mbufs</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param omp The mbuf pool to free the chain of mbufs into</span></span><br><span class="line"><span class="comment"> * @param om  The starting mbuf of the chain to free back into the pool</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @return 0 on success, -1 on failure</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">os_mbuf_free_chain</span><span class="params">(struct os_mbuf *om)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<h2 id="用户和协议栈的数据交互"><a href="#用户和协议栈的数据交互" class="headerlink" title="用户和协议栈的数据交互"></a>用户和协议栈的数据交互</h2><h3 id="GAP"><a href="#GAP" class="headerlink" title="GAP"></a>GAP</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ble_gap_event</span> &#123;</span></span><br><span class="line">    <span class="keyword">uint8_t</span> type;</span><br><span class="line">    <span class="keyword">union</span> &#123;</span><br><span class="line">        <span class="comment">// ...</span></span><br><span class="line">    &#125;;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * GAP 的回调函数</span></span><br><span class="line"><span class="comment"> * @param  event 唯一的代表了当前产生的 GAP 事件，包含事件类型以及事件相关信息</span></span><br><span class="line"><span class="comment"> * @param  arg   自定义的 GAP 回调函数形参，启动 GAP 流程时传入</span></span><br><span class="line"><span class="comment"> * @return       处理成功返回 0，处理失败返回非 0 错误码</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">typedef</span> <span class="keyword">int</span> <span class="title">ble_gap_event_fn</span><span class="params">(struct ble_gap_event *event, <span class="keyword">void</span> *arg)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<ul>
+<li>该回调函数每个连接单独配置。</li>
+<li>ADV，SCAN 等会单独配置，当连接建立的时候，该连接会自动沿用 ADV/SCAN 的回调函数。之后用户可调用接口 <code>int ble_gap_set_event_cb(uint16_t conn_handle, ble_gap_event_fn *cb, void *cb_arg);</code> 覆盖。</li>
+<li>若多处注册的回调函数为同一实体，参数 <code>arg</code> 可用作区分回调来自于谁。</li>
+</ul>
+<h3 id="L2CAP"><a href="#L2CAP" class="headerlink" title="L2CAP"></a>L2CAP</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ble_l2cap_event</span> &#123;</span></span><br><span class="line">    <span class="keyword">uint8_t</span> type;</span><br><span class="line">    <span class="keyword">union</span> &#123;</span><br><span class="line">        <span class="comment">// ...</span></span><br><span class="line">    &#125;;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">typedef</span> <span class="keyword">int</span> <span class="title">ble_l2cap_event_fn</span><span class="params">(struct ble_l2cap_event *event, <span class="keyword">void</span> *arg)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>其中 event type 有：</p>
+<ul>
+<li>BLE_L2CAP_EVENT_COC_CONNECTED</li>
+<li>BLE_L2CAP_EVENT_COC_DISCONNECTED</li>
+<li>BLE_L2CAP_EVENT_COC_ACCEPT</li>
+<li>BLE_L2CAP_EVENT_COC_DATA_RECEIVED</li>
+<li>BLE_L2CAP_EVENT_COC_TX_UNSTALLED</li>
+<li>BLE_L2CAP_EVENT_COC_RECONFIG_COMPLETED</li>
+<li>BLE_L2CAP_EVENT_COC_PEER_RECONFIGURED</li>
+</ul>
+<p>event 的内容里有 <code>ble_l2cap_chan</code> 项, 用户由此通过函数 <code>ble_l2cap_get_chan_info</code> 获得具体信息。</p>
+<p><code>ble_l2cap_chan</code> 对外仅是一个代号，没有具体含义。但对内是一个包含各种信息的结构体。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// for customer;</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ble_l2cap_chan</span>;</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ble_l2cap_chan_info</span> &#123;</span></span><br><span class="line">    <span class="keyword">uint16_t</span> scid;</span><br><span class="line">    <span class="keyword">uint16_t</span> dcid;</span><br><span class="line">    <span class="keyword">uint16_t</span> our_l2cap_mtu;</span><br><span class="line">    <span class="keyword">uint16_t</span> peer_l2cap_mtu;</span><br><span class="line">    <span class="keyword">uint16_t</span> psm;</span><br><span class="line">    <span class="keyword">uint16_t</span> our_coc_mtu;</span><br><span class="line">    <span class="keyword">uint16_t</span> peer_coc_mtu;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">ble_l2cap_get_chan_info</span><span class="params">(struct ble_l2cap_chan *chan, struct ble_l2cap_chan_info *chan_info)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// for nimble stack;</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ble_l2cap_chan</span> &#123;</span></span><br><span class="line">    SLIST_ENTRY(ble_l2cap_chan) next;</span><br><span class="line">    <span class="keyword">uint16_t</span> conn_handle;</span><br><span class="line">    <span class="keyword">uint16_t</span> dcid;</span><br><span class="line">    <span class="keyword">uint16_t</span> scid;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Unions just to avoid confusion on MPS/MTU.</span></span><br><span class="line"><span class="comment">     * In CoC context, L2CAP MTU is MPS</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">union</span> &#123;</span><br><span class="line">        <span class="keyword">uint16_t</span> my_mtu;</span><br><span class="line">        <span class="keyword">uint16_t</span> my_coc_mps;</span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">union</span> &#123;</span><br><span class="line">        <span class="keyword">uint16_t</span> peer_mtu;</span><br><span class="line">        <span class="keyword">uint16_t</span> peer_coc_mps;</span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    ble_l2cap_chan_flags flags;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">os_mbuf</span> *<span class="title">rx_buf</span>;</span></span><br><span class="line">    <span class="keyword">uint16_t</span> rx_len;        <span class="comment">/* Length of current reassembled rx packet. */</span></span><br><span class="line"></span><br><span class="line">    ble_l2cap_rx_fn *rx_fn;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">if</span> MYNEWT_VAL(BLE_L2CAP_COC_MAX_NUM) != 0</span></span><br><span class="line">    <span class="keyword">uint16_t</span> psm;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">ble_l2cap_coc_endpoint</span> <span class="title">coc_rx</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">ble_l2cap_coc_endpoint</span> <span class="title">coc_tx</span>;</span></span><br><span class="line">    <span class="keyword">uint16_t</span> initial_credits;</span><br><span class="line">    ble_l2cap_event_fn *cb;</span><br><span class="line">    <span class="keyword">void</span> *cb_arg;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="GATT"><a href="#GATT" class="headerlink" title="GATT"></a>GATT</h3><p>GATTS 可通过 <code>ble_gattc_notify</code>/<code>ble_gattc_indicate</code> 向 client 端发送数据。</p>
+<ul>
+<li>函数名称有误，应该为 <code>ble_gatts_notify</code>/<code>ble_gatts_indicate</code>。<a href="https://github.com/apache/mynewt-nimble/pull/1013" target="_blank" rel="noopener">Pull request</a></li>
+</ul>
+<p>Servers 端每个 characteristic 和 descriptor 的结构（<code>ble_gatt_chr_def</code>/<code>ble_gatt_dsc_def</code>）里会有一个 <code>ble_gatt_access_fn *access_cb</code> 属性，用来通知用户有 client 读写。</p>
+<p><strong>回调函数返回后，协议栈会自动释放内存。如果用户想保留该 buffer 的话，可以将参数里的指针置为空。</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Sends a characteristic notification.  The content of the message is read</span></span><br><span class="line"><span class="comment"> * from the specified characteristic.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param conn_handle           The connection over which to execute the</span></span><br><span class="line"><span class="comment"> *                                  procedure.</span></span><br><span class="line"><span class="comment"> * @param chr_val_handle        The value attribute handle of the</span></span><br><span class="line"><span class="comment"> *                                  characteristic to include in the outgoing</span></span><br><span class="line"><span class="comment"> *                                  notification.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @return                      0 on success; nonzero on failure.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">ble_gattc_notify</span><span class="params">(<span class="keyword">uint16_t</span> conn_handle, <span class="keyword">uint16_t</span> chr_val_handle)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Sends a characteristic indication.  The content of the message is read from</span></span><br><span class="line"><span class="comment"> * the specified characteristic.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param conn_handle           The connection over which to execute the</span></span><br><span class="line"><span class="comment"> *                                  procedure.</span></span><br><span class="line"><span class="comment"> * @param chr_val_handle        The value attribute handle of the</span></span><br><span class="line"><span class="comment"> *                                  characteristic to include in the outgoing</span></span><br><span class="line"><span class="comment"> *                                  indication.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @return                      0 on success; nonzero on failure.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">ble_gattc_indicate</span><span class="params">(<span class="keyword">uint16_t</span> conn_handle, <span class="keyword">uint16_t</span> chr_val_handle)</span></span>;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Context for an access to a GATT characteristic or descriptor.  When a client</span></span><br><span class="line"><span class="comment"> * reads or writes a locally registered characteristic or descriptor, an</span></span><br><span class="line"><span class="comment"> * instance of this struct gets passed to the application callback.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ble_gatt_access_ctxt</span> &#123;</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Indicates the gatt operation being performed.  This is equal to one of</span></span><br><span class="line"><span class="comment">     * the following values:</span></span><br><span class="line"><span class="comment">     *     o  BLE_GATT_ACCESS_OP_READ_CHR</span></span><br><span class="line"><span class="comment">     *     o  BLE_GATT_ACCESS_OP_WRITE_CHR</span></span><br><span class="line"><span class="comment">     *     o  BLE_GATT_ACCESS_OP_READ_DSC</span></span><br><span class="line"><span class="comment">     *     o  BLE_GATT_ACCESS_OP_WRITE_DSC</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">uint8_t</span> op;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * A container for the GATT access data.</span></span><br><span class="line"><span class="comment">     *     o For reads: The application populates this with the value of the</span></span><br><span class="line"><span class="comment">     *       characteristic or descriptor being read.</span></span><br><span class="line"><span class="comment">     *     o For writes: This is already populated with the value being written</span></span><br><span class="line"><span class="comment">     *       by the peer.  If the application wishes to retain this mbuf for</span></span><br><span class="line"><span class="comment">     *       later use, the access callback must set this pointer to NULL to</span></span><br><span class="line"><span class="comment">     *       prevent the stack from freeing it.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">os_mbuf</span> *<span class="title">om</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * The GATT operation being performed dictates which field in this union is</span></span><br><span class="line"><span class="comment">     * valid.  If a characteristic is being accessed, the chr field is valid.</span></span><br><span class="line"><span class="comment">     * Otherwise a descriptor is being accessed, in which case the dsc field</span></span><br><span class="line"><span class="comment">     * is valid.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">union</span> &#123;</span><br><span class="line">        <span class="comment">/**</span></span><br><span class="line"><span class="comment">         * The characteristic definition corresponding to the characteristic</span></span><br><span class="line"><span class="comment">         * being accessed.  This is what the app registered at startup.</span></span><br><span class="line"><span class="comment">         */</span></span><br><span class="line">        <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">ble_gatt_chr_def</span> *<span class="title">chr</span>;</span></span><br><span class="line"></span><br><span class="line">        <span class="comment">/**</span></span><br><span class="line"><span class="comment">         * The descriptor definition corresponding to the descriptor being</span></span><br><span class="line"><span class="comment">         * accessed.  This is what the app registered at startup.</span></span><br><span class="line"><span class="comment">         */</span></span><br><span class="line">        <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">ble_gatt_dsc_def</span> *<span class="title">dsc</span>;</span></span><br><span class="line">    &#125;;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">typedef</span> <span class="keyword">int</span> <span class="title">ble_gatt_access_fn</span><span class="params">(<span class="keyword">uint16_t</span> conn_handle, <span class="keyword">uint16_t</span> attr_handle,</span></span></span><br><span class="line"><span class="function"><span class="params">                               struct ble_gatt_access_ctxt *ctxt, <span class="keyword">void</span> *arg)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>GATTC 通过 <code>ble_gattc_read</code>/<code>ble_gattc_write</code> 读写 server 端的值（非阻塞）。成功后通过 callback 通知用户。</p>
+<p><strong>GATTC 如何接收 server 端发来的 notify/indicate？？？</strong></p>
+<ul>
+<li>在 GAP 的回调函数里，有 BLE_GAP_EVENT_NOTIFY_RX 事件，用来通知用户有 servers 发送了 notify/indicate。<strong>WHAT???</strong></li>
+<li>应该在 GATT 的回调函数里，或者 L2CAP 的回调函数里。</li>
+</ul>
+<p><strong>回调函数返回后，协议栈会自动释放内存。如果用户想保留该 buffer 的话，可以将参数里的指针置为空。</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ble_gatt_attr</span> &#123;</span></span><br><span class="line">    <span class="keyword">uint16_t</span> handle;</span><br><span class="line">    <span class="keyword">uint16_t</span> offset;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">os_mbuf</span> *<span class="title">om</span>;</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * The host will free the attribute mbuf automatically after the callback is</span></span><br><span class="line"><span class="comment"> * executed.  The application can take ownership of the mbuf and prevent it</span></span><br><span class="line"><span class="comment"> * from being freed by assigning NULL to attr-&gt;om.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">typedef</span> <span class="keyword">int</span> <span class="title">ble_gatt_attr_fn</span><span class="params">(<span class="keyword">uint16_t</span> conn_handle,</span></span></span><br><span class="line"><span class="function"><span class="params">                             <span class="keyword">const</span> struct ble_gatt_error *error,</span></span></span><br><span class="line"><span class="function"><span class="params">                             struct ble_gatt_attr *attr,</span></span></span><br><span class="line"><span class="function"><span class="params">                             <span class="keyword">void</span> *arg)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Initiates GATT procedure: Read Characteristic Value.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param conn_handle           The connection over which to execute the</span></span><br><span class="line"><span class="comment"> *                                  procedure.</span></span><br><span class="line"><span class="comment"> * @param attr_handle           The handle of the characteristic value to read.</span></span><br><span class="line"><span class="comment"> * @param cb                    The function to call to report procedure status</span></span><br><span class="line"><span class="comment"> *                                  updates; null for no callback.</span></span><br><span class="line"><span class="comment"> * @param cb_arg                The optional argument to pass to the callback</span></span><br><span class="line"><span class="comment"> *                                  function.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @return                      0 on success; nonzero on failure.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">ble_gattc_read</span><span class="params">(<span class="keyword">uint16_t</span> conn_handle, <span class="keyword">uint16_t</span> attr_handle,</span></span></span><br><span class="line"><span class="function"><span class="params">                   ble_gatt_attr_fn *cb, <span class="keyword">void</span> *cb_arg)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Initiates GATT procedure: Write Characteristic Value.  This function</span></span><br><span class="line"><span class="comment"> * consumes the supplied mbuf regardless of the outcome.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param conn_handle           The connection over which to execute the</span></span><br><span class="line"><span class="comment"> *                                  procedure.</span></span><br><span class="line"><span class="comment"> * @param attr_handle           The handle of the characteristic value to write</span></span><br><span class="line"><span class="comment"> *                                  to.</span></span><br><span class="line"><span class="comment"> * @param txom                  The value to write to the characteristic.</span></span><br><span class="line"><span class="comment"> * @param cb                    The function to call to report procedure status</span></span><br><span class="line"><span class="comment"> *                                  updates; null for no callback.</span></span><br><span class="line"><span class="comment"> * @param cb_arg                The optional argument to pass to the callback</span></span><br><span class="line"><span class="comment"> *                                  function.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @return                      0 on success; nonzero on failure.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">ble_gattc_write</span><span class="params">(<span class="keyword">uint16_t</span> conn_handle, <span class="keyword">uint16_t</span> attr_handle,</span></span></span><br><span class="line"><span class="function"><span class="params">                    struct os_mbuf *om,</span></span></span><br><span class="line"><span class="function"><span class="params">                    ble_gatt_attr_fn *cb, <span class="keyword">void</span> *cb_arg)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/***********************************************/</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ble_gap_event</span> &#123;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">uint8_t</span> type;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">union</span> &#123;</span><br><span class="line">        <span class="comment">/* ... */</span></span><br><span class="line"></span><br><span class="line">        <span class="comment">/**</span></span><br><span class="line"><span class="comment">         * Represents a received ATT notification or indication.</span></span><br><span class="line"><span class="comment">         *</span></span><br><span class="line"><span class="comment">         * Valid for the following event types:</span></span><br><span class="line"><span class="comment">         *     o BLE_GAP_EVENT_NOTIFY_RX</span></span><br><span class="line"><span class="comment">         */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">            <span class="comment">/**</span></span><br><span class="line"><span class="comment">             * The contents of the notification or indication.  If the</span></span><br><span class="line"><span class="comment">             * application wishes to retain this mbuf for later use, it must</span></span><br><span class="line"><span class="comment">             * set this pointer to NULL to prevent the stack from freeing it.</span></span><br><span class="line"><span class="comment">             */</span></span><br><span class="line">            <span class="class"><span class="keyword">struct</span> <span class="title">os_mbuf</span> *<span class="title">om</span>;</span></span><br><span class="line"></span><br><span class="line">            <span class="comment">/** The handle of the relevant ATT attribute. */</span></span><br><span class="line">            <span class="keyword">uint16_t</span> attr_handle;</span><br><span class="line"></span><br><span class="line">            <span class="comment">/** The handle of the relevant connection. */</span></span><br><span class="line">            <span class="keyword">uint16_t</span> conn_handle;</span><br><span class="line"></span><br><span class="line">            <span class="comment">/**</span></span><br><span class="line"><span class="comment">             * Whether the received command is a notification or an</span></span><br><span class="line"><span class="comment">             * indication;</span></span><br><span class="line"><span class="comment">             *     o 0: Notification;</span></span><br><span class="line"><span class="comment">             *     o 1: Indication.</span></span><br><span class="line"><span class="comment">             */</span></span><br><span class="line">            <span class="keyword">uint8_t</span> indication:<span class="number">1</span>;</span><br><span class="line">        &#125; notify_rx;</span><br><span class="line"></span><br><span class="line">        <span class="comment">/* ... */</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="HOST-和-CONTROLLER-的数据交互"><a href="#HOST-和-CONTROLLER-的数据交互" class="headerlink" title="HOST 和 CONTROLLER 的数据交互"></a>HOST 和 CONTROLLER 的数据交互</h2><p><code>nimble/include/nimble/ble_hci_trans.h</code> 里</p>
+<p><code>ble_hci_trans_ll_evt_tx</code> 和 <code>ble_hci_trans_ll_acl_tx</code> 负责 controller 发送 event 和 ACL 数据；<br><code>ble_hci_trans_cfg_ll</code> 负责 controller 注册收发 CMD 和 ACL 的 callback。</p>
+<p><code>ble_hci_trans_hs_cmd_tx</code> 和 <code>ble_hci_trans_hs_acl_tx</code> 负责 host 发送 command 和 ACL 数据；<br><code>ble_hci_trans_cfg_hs</code> 负责 host 注册收发 event 和 ACL 的 callback。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Sends an HCI event from the controller to the host.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param cmd                   The HCI event to send.  This buffer must be</span></span><br><span class="line"><span class="comment"> *                                  allocated via ble_hci_trans_buf_alloc().</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @return                      0 on success;</span></span><br><span class="line"><span class="comment"> *                              A BLE_ERR_[...] error code on failure.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">ble_hci_trans_ll_evt_tx</span><span class="params">(<span class="keyword">uint8_t</span> *hci_ev)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Sends ACL data from controller to host.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param om                    The ACL data packet to send.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @return                      0 on success;</span></span><br><span class="line"><span class="comment"> *                              A BLE_ERR_[...] error code on failure.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">ble_hci_trans_ll_acl_tx</span><span class="params">(struct os_mbuf *om)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Configures the HCI transport to operate with a controller.  The transport</span></span><br><span class="line"><span class="comment"> * will execute specified callbacks upon receiving HCI packets from the host.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param cmd_cb                The callback to execute upon receiving an HCI</span></span><br><span class="line"><span class="comment"> *                                  command.</span></span><br><span class="line"><span class="comment"> * @param cmd_arg               Optional argument to pass to the command</span></span><br><span class="line"><span class="comment"> *                                  callback.</span></span><br><span class="line"><span class="comment"> * @param acl_cb                The callback to execute upon receiving ACL</span></span><br><span class="line"><span class="comment"> *                                  data.</span></span><br><span class="line"><span class="comment"> * @param acl_arg               Optional argument to pass to the ACL</span></span><br><span class="line"><span class="comment"> *                                  callback.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">ble_hci_trans_cfg_ll</span><span class="params">(ble_hci_trans_rx_cmd_fn *cmd_cb,</span></span></span><br><span class="line"><span class="function"><span class="params">                          <span class="keyword">void</span> *cmd_arg,</span></span></span><br><span class="line"><span class="function"><span class="params">                          ble_hci_trans_rx_acl_fn *acl_cb,</span></span></span><br><span class="line"><span class="function"><span class="params">                          <span class="keyword">void</span> *acl_arg)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Sends an HCI command from the host to the controller.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param cmd                   The HCI command to send.  This buffer must be</span></span><br><span class="line"><span class="comment"> *                                  allocated via ble_hci_trans_buf_alloc().</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @return                      0 on success;</span></span><br><span class="line"><span class="comment"> *                              A BLE_ERR_[...] error code on failure.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">ble_hci_trans_hs_cmd_tx</span><span class="params">(<span class="keyword">uint8_t</span> *cmd)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Sends ACL data from host to controller.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param om                    The ACL data packet to send.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @return                      0 on success;</span></span><br><span class="line"><span class="comment"> *                              A BLE_ERR_[...] error code on failure.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">ble_hci_trans_hs_acl_tx</span><span class="params">(struct os_mbuf *om)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Configures the HCI transport to operate with a host.  The transport will</span></span><br><span class="line"><span class="comment"> * execute specified callbacks upon receiving HCI packets from the controller.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param evt_cb                The callback to execute upon receiving an HCI</span></span><br><span class="line"><span class="comment"> *                                  event.</span></span><br><span class="line"><span class="comment"> * @param evt_arg               Optional argument to pass to the event</span></span><br><span class="line"><span class="comment"> *                                  callback.</span></span><br><span class="line"><span class="comment"> * @param acl_cb                The callback to execute upon receiving ACL</span></span><br><span class="line"><span class="comment"> *                                  data.</span></span><br><span class="line"><span class="comment"> * @param acl_arg               Optional argument to pass to the ACL</span></span><br><span class="line"><span class="comment"> *                                  callback.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">ble_hci_trans_cfg_hs</span><span class="params">(ble_hci_trans_rx_cmd_fn *evt_cb,</span></span></span><br><span class="line"><span class="function"><span class="params">                          <span class="keyword">void</span> *evt_arg,</span></span></span><br><span class="line"><span class="function"><span class="params">                          ble_hci_trans_rx_acl_fn *acl_cb,</span></span></span><br><span class="line"><span class="function"><span class="params">                          <span class="keyword">void</span> *acl_arg)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>上诉函数的实现在 <code>nimble/transport/xxx/src/xxx.c</code> 里。可通过 UART，USB，socket，ram 等传输 HCI， 根据传输介质的不同实现不同。大部分的实现为将数据直接送给传输介质。</p>
+<p>若 controller 和 host 在同一设备上，则可采取 ram 的方法传输，即 TX 函数直接调用对方注册相对应的 RX callback，将数据的指针直接传送给对方，内存的释放由接收方负责。该方法实现简单，没有数据的传输和拷贝带来的开销。例如：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">ble_hci_trans_hs_cmd_tx</span><span class="params">(<span class="keyword">uint8_t</span> *cmd)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">int</span> rc;</span><br><span class="line"></span><br><span class="line">    assert(ble_hci_ram_rx_cmd_ll_cb != <span class="literal">NULL</span>);</span><br><span class="line"></span><br><span class="line">    rc = ble_hci_ram_rx_cmd_ll_cb(cmd, ble_hci_ram_rx_cmd_ll_arg);</span><br><span class="line">    <span class="keyword">return</span> rc;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+<p>nimble host 发送 CMD 时，采用的是同步的方法，同一时间只有一个 HCI CMD 的交互，发送 HCI CMD 后会立刻等待 controller 的回复。</p>
+<ul>
+<li>该接口为阻塞接口，效率较低。若需求高效率可考虑改为异步接口。</li>
+</ul>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">ble_hs_hci_cmd_tx</span><span class="params">(<span class="keyword">uint16_t</span> opcode, <span class="keyword">const</span> <span class="keyword">void</span> *cmd, <span class="keyword">uint8_t</span> cmd_len,</span></span></span><br><span class="line"><span class="function"><span class="params">                  <span class="keyword">void</span> *rsp, <span class="keyword">uint8_t</span> rsp_len)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">ble_hs_hci_ack</span> <span class="title">ack</span>;</span></span><br><span class="line">    <span class="keyword">int</span> rc;</span><br><span class="line"></span><br><span class="line">    BLE_HS_DBG_ASSERT(ble_hs_hci_ack == <span class="literal">NULL</span>);</span><br><span class="line">    ble_hs_hci_lock();</span><br><span class="line"></span><br><span class="line">    rc = ble_hs_hci_cmd_send_buf(opcode, cmd, cmd_len);</span><br><span class="line">    <span class="keyword">if</span> (rc != <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">goto</span> done;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    rc = ble_hs_hci_wait_for_ack();</span><br><span class="line">    <span class="keyword">if</span> (rc != <span class="number">0</span>) &#123;</span><br><span class="line">        ble_hs_sched_reset(rc);</span><br><span class="line">        <span class="keyword">goto</span> done;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    rc = ble_hs_hci_process_ack(opcode, rsp, rsp_len, &amp;ack);</span><br><span class="line">    <span class="keyword">if</span> (rc != <span class="number">0</span>) &#123;</span><br><span class="line">        ble_hs_sched_reset(rc);</span><br><span class="line">        <span class="keyword">goto</span> done;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    rc = ack.bha_status;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* on success we should always get full response */</span></span><br><span class="line">    <span class="keyword">if</span> (!rc &amp;&amp; (ack.bha_params_len != rsp_len)) &#123;</span><br><span class="line">        ble_hs_sched_reset(rc);</span><br><span class="line">        <span class="keyword">goto</span> done;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">done:</span><br><span class="line">    <span class="keyword">if</span> (ble_hs_hci_ack != <span class="literal">NULL</span>) &#123;</span><br><span class="line">        ble_hci_trans_buf_free((<span class="keyword">uint8_t</span> *) ble_hs_hci_ack);</span><br><span class="line">        ble_hs_hci_ack = <span class="literal">NULL</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    ble_hs_hci_unlock();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E8%93%9D%E7%89%99/" rel="tag"># 蓝牙</a>
+              <a href="/tags/%E5%8D%8F%E8%AE%AE/" rel="tag"># 协议</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/08/20/flow-ctrl/" rel="prev" title="Flow Control">
+      <i class="fa fa-chevron-left"></i> Flow Control
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020/12/17/Bluetooth-disc-conn/" rel="next" title="蓝牙中设备发现与连接">
+      蓝牙中设备发现与连接 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#目录结构"><span class="nav-number">1.</span> <span class="nav-text">目录结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#内存的分配和释放"><span class="nav-number">2.</span> <span class="nav-text">内存的分配和释放</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#用户和协议栈的数据交互"><span class="nav-number">3.</span> <span class="nav-text">用户和协议栈的数据交互</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#GAP"><span class="nav-number">3.1.</span> <span class="nav-text">GAP</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#L2CAP"><span class="nav-number">3.2.</span> <span class="nav-text">L2CAP</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#GATT"><span class="nav-number">3.3.</span> <span class="nav-text">GATT</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#HOST-和-CONTROLLER-的数据交互"><span class="nav-number">4.</span> <span class="nav-text">HOST 和 CONTROLLER 的数据交互</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Baohd<br>鲍宏德"
+      src="/images/head.jpg">
+  <p class="site-author-name" itemprop="name">Baohd<br>鲍宏德</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">6</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/blueMoods" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;blueMoods" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:baohd@mail.ustc.edu.cn" title="E-Mail → mailto:baohd@mail.ustc.edu.cn" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Baohd<br>鲍宏德</span>
+</div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/head.jpg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/head.jpg">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/head.jpg">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"home.ustc.edu.cn","root":"/","scheme":"Gemini","version":"8.0.0-rc.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="流控是针对的是发送方和接收方速度不匹配的问题（比如经典的fast sender and slow receiver问题，接收方缓存大小与发送速率不匹配），提供一种速度匹配服务遏制发送速率使接收方应用程序的读取速率与之相适应.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Flow Control">
+<meta property="og:url" content="http://home.ustc.edu.cn/~baohd/2020/08/20/flow-ctrl/index.html">
+<meta property="og:site_name" content="Baohd">
+<meta property="og:description" content="流控是针对的是发送方和接收方速度不匹配的问题（比如经典的fast sender and slow receiver问题，接收方缓存大小与发送速率不匹配），提供一种速度匹配服务遏制发送速率使接收方应用程序的读取速率与之相适应.">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2020/08/20/flow-ctrl/tcp.png">
+<meta property="article:published_time" content="2020-08-20T09:21:24.000Z">
+<meta property="article:modified_time" content="2021-09-25T08:51:17.462Z">
+<meta property="article:author" content="Baohd&lt;br&gt;鲍宏德">
+<meta property="article:tag" content="协议">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://home.ustc.edu.cn/~baohd/2020/08/20/flow-ctrl/tcp.png">
+
+<link rel="canonical" href="http://home.ustc.edu.cn/~baohd/2020/08/20/flow-ctrl/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Flow Control | Baohd</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line toggle-line-first"></span>
+        <span class="toggle-line toggle-line-middle"></span>
+        <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Baohd</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">宏博江山八万里 德馨古今九百川</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签<span class="badge">5</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类<span class="badge">3</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">6</span></a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://home.ustc.edu.cn/~baohd/2020/08/20/flow-ctrl/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/head.jpg">
+      <meta itemprop="name" content="Baohd<br>鲍宏德">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Baohd">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Flow Control
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2020-08-20 17:21:24" itemprop="dateCreated datePublished" datetime="2020-08-20T17:21:24+08:00">2020-08-20</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2021-09-25 16:51:17" itemprop="dateModified" datetime="2021-09-25T16:51:17+08:00">2021-09-25</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E9%80%9A%E4%BF%A1/" itemprop="url" rel="index"><span itemprop="name">通信</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>流控是针对的是发送方和接收方速度不匹配的问题（比如经典的fast sender and slow receiver问题，接收方缓存大小与发送速率不匹配），提供一种速度匹配服务遏制发送速率使接收方应用程序的读取速率与之相适应.</p>
+<a id="more"></a>
+<h2 id="Flow-Control-的几种思路"><a href="#Flow-Control-的几种思路" class="headerlink" title="Flow Control 的几种思路"></a>Flow Control 的几种思路</h2><ol>
+<li>Backpressure<ol>
+<li>应答式停等流量控制方法<ul>
+<li>发送方发送一信息帧后等待 ACK 回应然后再发下一帧</li>
+</ul>
+</li>
+<li>预约缓冲区法<ul>
+<li>发送方再发信息前，向接收方预约所到信息可用的缓冲区，并根据预约缓冲的容量发送数据。若缓冲区用完，则暂停发送，等待接收方再次分配缓冲区后继续发送</li>
+</ul>
+</li>
+<li>滑动窗口控制法<ul>
+<li>改变滑动窗口的大小来达到流控的效果</li>
+</ul>
+</li>
+</ol>
+</li>
+<li>节流（Throttling）<ul>
+<li>就是丢弃。消费不过来，就处理其中一部分，剩下的丢弃。</li>
+<li>sample (throttleLast)<ul>
+<li>比如每100毫秒采样一个值，但100毫秒内上游可能过来很多值，选最后那个值，其余值丢弃。</li>
+</ul>
+</li>
+<li>throttleFirst<ul>
+<li>与 sample 相反，取第一个值。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>FCon/FCoff<ul>
+<li>直接通过命令控制，一般用于全双工模式下。</li>
+</ul>
+</li>
+<li>阻塞住整个调用链（Callstack blocking）<ul>
+<li>这是一种特殊情况，这种方式只适用于整个调用链都在一个线程上同步执行，这种阻塞的方式简单，不需要额外的支持。</li>
+</ul>
+</li>
+</ol>
+<h2 id="半双工"><a href="#半双工" class="headerlink" title="半双工"></a>半双工</h2><h3 id="Bluetooth"><a href="#Bluetooth" class="headerlink" title="Bluetooth"></a>Bluetooth</h3><ul>
+<li><p>底层： 应答式停等流量控制方法</p>
+<ul>
+<li>每个包都需要等待对方的 ACK，未收到就重传。</li>
+</ul>
+</li>
+<li><p>HCI： 预约缓冲区法</p>
+<ul>
+<li>Controller to Host 和 Host to Controller 相同，都是预先获取对方的 buf 数，等待 number of complete packet 回复。</li>
+</ul>
+</li>
+<li><p>L2CAP</p>
+<ol>
+<li>Basic L2CAP Mode<ul>
+<li>是默认模式，在未选择其他模式的情况下，就是用此模式。</li>
+</ul>
+</li>
+<li>Flow Control Mode<ul>
+<li>不会进行重传，但是丢失的数据能够被检测到，并报告丢失。只能用于当L2CAP之间不支持加强重传和流模式的时候。</li>
+</ul>
+</li>
+<li>Retransmission Mode<ul>
+<li>有个 timer 来保证所有的 PDU 都传输成功了，超时重传。使用 go-back-n 策略简化协议并限制缓冲区。只能用于当L2CAP之间不支持加强重传和流模式的时候。</li>
+</ul>
+</li>
+<li>Enhanced Retransmission Mode<ul>
+<li>用于 AMP-U 和 ACL-U 上可信任的信道。在重传模式上加了一个 POLL 位来向远程的 L2CAP 实体索要响应。</li>
+</ul>
+</li>
+<li>Streaming Mode<ul>
+<li>为了真实的等时传输，数据包被编号但是不需要 ACK 确认。设定一个超时定时器，一旦定时器超时就将超时的数据干掉。</li>
+</ul>
+</li>
+<li>LE Credit Based Flow Control Mode<ul>
+<li>是唯一被用于 LE 设备的信道模式。</li>
+</ul>
+</li>
+</ol>
+</li>
+<li><p>RFCOMM：</p>
+<ol>
+<li>based on credit 基于信用的流控机制（预约缓冲区法）<ul>
+<li>ESP32 中初始 7 个缓冲 buf，（curr：7，MAX：10， MIN：4）。接收端处理一个包后 <code>curr--</code>， 当 <code>curr &lt;= MIN</code> 时，会回复对方 <code>MAX - curr</code> 个 credit；</li>
+<li>发送方维持一个 buf 数 <code>curr</code>，每发送一个包 <code>curr--</code>，收到对方的 credit 后 <code>curr += credit</code>，当 <code>curr == 0</code>时停止发送。</li>
+</ul>
+</li>
+<li>FCon/FCoff<ul>
+<li>RFCOMM 流控指令，用于控制两个 RFCOMM 实体之间的全部数据流，作用于所有 DLCI。</li>
+</ul>
+</li>
+<li>MSC<ul>
+<li>调制解调器状态命令，是针对单个 DLCI 的流控机制。</li>
+</ul>
+</li>
+</ol>
+</li>
+</ul>
+<h3 id="TCP"><a href="#TCP" class="headerlink" title="TCP"></a>TCP</h3><ul>
+<li><p>滑动窗口</p>
+<ul>
+<li>成块数据类型<ul>
+<li>如：FTP，这类协议需要传输的数据比较多，一般传输的数据量比较大。</li>
+</ul>
+</li>
+<li>接收方收到窗口的第一个包后便向后移动滑动窗口，等待应用程序取走；收到窗口内的包则暂时保留；收到窗口外的包则直接丢弃。</li>
+<li>发送方窗口的第一个字节序号一定是ACK中期望收到的确认序号，收到 ack 后窗口向后移动。</li>
+<li>接收方通过调整窗口的大小通知发送方发送数据</li>
+<li>如果接收方发送的通知丢失, 会引发接收方和发送方同时在等待，这个时候需要用到坚持定时器<ul>
+<li>当接收到窗口为 0 的消息，则启动坚持定时器，每隔一段时间发送一个窗口探测报文</li>
+</ul>
+</li>
+<li><img src="tcp.png" alt=""></li>
+</ul>
+</li>
+<li><p>捎带ACK和Nagle算法</p>
+<ul>
+<li>交互数据类型，<ul>
+<li>如：Telnet，这类协议一般只做小流量的数据交换，比如每按下一个键，要回显一些字符。</li>
+</ul>
+</li>
+<li>捎带ACK<ul>
+<li>当接收端接收到TCP报文段后，并不立即发送ACK报文，而是等上一段时间，如果这段时间里该主机有数据要发送到远程主机，就将该数据捎带上ACK一起发送过去，很明显，这样可以减少传输开销。</li>
+</ul>
+</li>
+<li>Nagle算法<ul>
+<li>该算法的重点是要求在TCP连接上组多只能有一个未被确认的数据报在传输。算法的大致思路如下：应用程序把要发送的数据逐个字节地从到TCP的发送缓存，发送方把线面的一部分数据先发送出去，并把后面到达的字节继续缓存起来，当发送方收到前面字节的确认后，再把发送缓冲中的所有数据组装成一个报文段发送出去，同时继续对随后到来的数据进行缓存。只有收到前一个报文段的确认后才能继续发送下一个报文段。另外，Nagle算法还规定，当发送缓存中的数据已达到发送窗口大小的一半或已达到报文段的MSS值时，就立即发送一个报文段。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h3 id="I2C-Inter－Integrated-Circuit"><a href="#I2C-Inter－Integrated-Circuit" class="headerlink" title="I2C (Inter－Integrated Circuit)"></a>I2C (Inter－Integrated Circuit)</h3><ul>
+<li>引脚<ol>
+<li>SDA： 串行数据线</li>
+<li>SCL： 串行时钟线</li>
+</ol>
+</li>
+<li>0Hz - 3.4MHz</li>
+<li>多主机总线，任何器件既可以作为主机也可以作为从机，但同一时刻只允许有一个主机。</li>
+<li>流控<ul>
+<li>主器件在完成接收来自从器件的数据时总是发送一个确认位，除非其准备终止传输。从器件在其接收到来自主器件的命令或数据时总是发送一个确认位。当从器件未准备好时，它可以保持或延展时钟，直到其再次准备好响应。</li>
+</ul>
+</li>
+</ul>
+<h2 id="全双工"><a href="#全双工" class="headerlink" title="全双工"></a>全双工</h2><h3 id="以太网"><a href="#以太网" class="headerlink" title="以太网"></a>以太网</h3><ul>
+<li>IEEE 802.3x<ul>
+<li>当buffer的占用率达到一定程度时，就会向外发送PAUSE帧，通知对端暂停发送一段时间。PAUSE帧只能阻止对端发送普通的数据帧，不能阻止发送MAC控制帧。</li>
+<li>PAUSE帧会导致一条链路上的所有报文停止发送，在服务质量要求较高的网络中，这显然是不能接受的。</li>
+</ul>
+</li>
+<li>IEEE 802.1Qbb<ul>
+<li>基于优先级的流控（PFC）（Priority-based Flow Control）</li>
+<li>针对同一链路上不同优先级的流量，单独发送PASUSE帧。当某一优先级的业务发生拥塞时，只让该类报文暂停发送，而其他类型的业务不受影响。</li>
+</ul>
+</li>
+</ul>
+<h3 id="UART-Universal-Asynchronous-Receiver-Transmitter"><a href="#UART-Universal-Asynchronous-Receiver-Transmitter" class="headerlink" title="UART(Universal Asynchronous Receiver/Transmitter)"></a>UART(Universal Asynchronous Receiver/Transmitter)</h3><ul>
+<li><p>引脚</p>
+<ol>
+<li>RX： 数据输入</li>
+<li>TX： 数据输出</li>
+<li>GND: 共地</li>
+<li>[RTS]: Require ToSend，发送请求</li>
+<li>[CTS]: Clear ToSend，发送允许</li>
+</ol>
+</li>
+<li><p>硬件流控： RTS/CTS</p>
+<ul>
+<li>RTS的作用是告诉对方我可以接受数据，是输出口；CTS的作用是根据电平高低控制发送或不发生数据。</li>
+</ul>
+</li>
+<li><p>软件流控： XON/XOFF</p>
+<ul>
+<li>当接收方不想继续接收数据时，通过接收方的TXD给发送方发送一个XOFF信号，发送方接收到这个字符就暂停发送数据；等到接收方可以继续接收数据时，接收方再给发送方发送一个XON信号，于是发送方继续发送数据。</li>
+<li>因为XON、XOFF信号也是通过数据信号线发送的，所以软件流控在传输二进制数据时可能会出现错误，因为可能你发送的数据里面也有XON、XOFF对应的二进制值。但是这种情况也可以解决，比如对XON、XOFF进行转义。</li>
+</ul>
+</li>
+</ul>
+<h3 id="SPI-Serial-Perripheral-Interface"><a href="#SPI-Serial-Perripheral-Interface" class="headerlink" title="SPI (Serial Perripheral Interface)"></a>SPI (Serial Perripheral Interface)</h3><ul>
+<li>引脚<ol>
+<li>SDI： 数据输入</li>
+<li>SDO： 数据输出</li>
+<li>SCLK： 时钟信号，由主设备产生</li>
+<li>CS： 片选信号</li>
+</ol>
+</li>
+<li>一主多从</li>
+<li>全双工、高速、同步、非差分、总线、主从通信</li>
+<li>非应答，<strong><em>无流控</em></strong></li>
+</ul>
+<h3 id="I2S-Inter—IC-Sound"><a href="#I2S-Inter—IC-Sound" class="headerlink" title="I2S (Inter—IC Sound)"></a>I2S (Inter—IC Sound)</h3><ul>
+<li>引脚<ol>
+<li>SCLK：串行时钟，也叫位时钟（BCLK），即对应数字音频的每一位数据，SCLK都有1个脉冲。SCLK的频率=2×采样频率×采样位数</li>
+<li>LRCK(WS)：帧时钟，用于切换左右声道的数据。LRCK的频率=采样频率。</li>
+<li>SDATA：串行数据，就是用二进制补码表示的音频数据</li>
+<li>[MCLK]：主时钟，也叫系统时钟（Sys Clock）。为了使系统间能够更好地同步，MCLK的频率= 256倍或384倍采样频率。</li>
+</ol>
+</li>
+<li>支持全双工和半双工通信。<ul>
+<li><strong><em>???</em></strong></li>
+</ul>
+</li>
+<li>流控<ul>
+<li>数据的最高位总是出现在LRCK变化（也就是一帧开始）后的第2个SCLK脉冲处，这就使得接收端与发送端的有效位数可以不同。如果接收端能处理的有效位数少于发送端，可以放弃数据帧中多余的低位数据；如果接收端能处理的有效位数多于发送端，可以自行补足剩余的位。</li>
+</ul>
+</li>
+</ul>
+<h2 id="Flow-Control-in-Task"><a href="#Flow-Control-in-Task" class="headerlink" title="Flow Control in Task"></a>Flow Control in Task</h2><ul>
+<li>如何解决数据处理滞后导致的 buffer 中待处理数据不断增加累积的问题？<ol>
+<li>使用 ringbuf， Freertos queue, Fixed_queue 等限制上游发送速率，当下游 full 时阻塞住上游。<ul>
+<li>影响上游的执行效率，导致上游不能处理任何任务。严重情况下可能发生死锁。</li>
+</ul>
+</li>
+<li>使用 ringbuf， Freertos queue, Fixed_queue 等限制下游数据量，当下游 full 时直接丢弃数据。<ul>
+<li>数据丢失</li>
+</ul>
+</li>
+<li>Task 之间使用上述的流控机制。<ul>
+<li>实现复杂</li>
+</ul>
+</li>
+<li>直接使用协议栈的流控机制控制住最上游的数据。<ul>
+<li>不是通用做法，多种协议分别控制，可能不能处理某些特殊情况。</li>
+</ul>
+</li>
+</ol>
+</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%8D%8F%E8%AE%AE/" rel="tag"># 协议</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/05/31/square-rooting/" rel="prev" title="平方根算法">
+      <i class="fa fa-chevron-left"></i> 平方根算法
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020/08/25/Nimble-data-path/" rel="next" title="Nimble 协议栈数据通路">
+      Nimble 协议栈数据通路 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Flow-Control-的几种思路"><span class="nav-number">1.</span> <span class="nav-text">Flow Control 的几种思路</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#半双工"><span class="nav-number">2.</span> <span class="nav-text">半双工</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Bluetooth"><span class="nav-number">2.1.</span> <span class="nav-text">Bluetooth</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#TCP"><span class="nav-number">2.2.</span> <span class="nav-text">TCP</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#I2C-Inter－Integrated-Circuit"><span class="nav-number">2.3.</span> <span class="nav-text">I2C (Inter－Integrated Circuit)</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#全双工"><span class="nav-number">3.</span> <span class="nav-text">全双工</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#以太网"><span class="nav-number">3.1.</span> <span class="nav-text">以太网</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#UART-Universal-Asynchronous-Receiver-Transmitter"><span class="nav-number">3.2.</span> <span class="nav-text">UART(Universal Asynchronous Receiver&#x2F;Transmitter)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#SPI-Serial-Perripheral-Interface"><span class="nav-number">3.3.</span> <span class="nav-text">SPI (Serial Perripheral Interface)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#I2S-Inter—IC-Sound"><span class="nav-number">3.4.</span> <span class="nav-text">I2S (Inter—IC Sound)</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Flow-Control-in-Task"><span class="nav-number">4.</span> <span class="nav-text">Flow Control in Task</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Baohd<br>鲍宏德"
+      src="/images/head.jpg">
+  <p class="site-author-name" itemprop="name">Baohd<br>鲍宏德</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">6</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/blueMoods" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;blueMoods" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:baohd@mail.ustc.edu.cn" title="E-Mail → mailto:baohd@mail.ustc.edu.cn" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Baohd<br>鲍宏德</span>
+</div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
