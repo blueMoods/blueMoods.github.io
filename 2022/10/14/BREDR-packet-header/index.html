@@ -29,6 +29,7 @@
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/stop-and-wait_ARQ.png">
 <meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/sliding_window_ARQ.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/utilization_ARQ.png">
 <meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/br_pkt_format.png">
 <meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/edr_pkt_format.png">
 <meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/header_format.png">
@@ -52,7 +53,7 @@
 <meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/BLE_ARQ.png">
 <meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/BLE_ll.png">
 <meta property="article:published_time" content="2022-10-14T09:01:51.000Z">
-<meta property="article:modified_time" content="2022-10-19T00:50:55.170Z">
+<meta property="article:modified_time" content="2022-10-19T13:05:34.615Z">
 <meta property="article:author" content="Baohd&lt;br&gt;鲍宏德">
 <meta property="article:tag" content="蓝牙">
 <meta property="article:tag" content="协议">
@@ -222,7 +223,7 @@
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2022-10-19 08:50:55" itemprop="dateModified" datetime="2022-10-19T08:50:55+08:00">2022-10-19</time>
+                <time title="修改时间：2022-10-19 21:05:34" itemprop="dateModified" datetime="2022-10-19T21:05:34+08:00">2022-10-19</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -316,10 +317,28 @@
 </li>
 </ol>
 <p>Selective-Reject ARQ will appear to be more efficient than Go-Back-N ARQ, but it need a buffer large enough to save frames.</p>
-<h1 id="BR-EDR-General-Format"><a href="#BR-EDR-General-Format" class="headerlink" title="BR/EDR General Format"></a>BR/EDR General Format</h1><h2 id="Basic-Rate"><a href="#Basic-Rate" class="headerlink" title="Basic Rate"></a>Basic Rate</h2><center id="F-3"></center>
+<h2 id="ARQ-Utilization"><a href="#ARQ-Utilization" class="headerlink" title="ARQ Utilization"></a>ARQ Utilization</h2><center id="F-3"></center>
+
+<p><img src="utilization_ARQ.png" alt="utilization_ARQ"></p>
+<center style="color:#C0C0C0;">Figure 3. ARQ Utilization as a Function of a(P = 10^-3)</center><br>
+
+<blockquote>
+<p>a = Tprop / Tframe</p>
+</blockquote>
+<blockquote>
+<p>Tprop: propagation time from sending device to receiving device.</p>
+</blockquote>
+<blockquote>
+<p>Tframe: time to transmit a frame.(Time for the sending device to send out all of the bit of the frame.)</p>
+</blockquote>
+<blockquote>
+<p>P: the probability that a single frame is in error.</p>
+</blockquote>
+<p><a href="#F-3">Figure 3</a> assumes that this is a full-duplex communication with infinitely short ACK packet. That is, the transmission time of the ACK packet is approximately equal to 0.</p>
+<h1 id="BR-EDR-General-Format"><a href="#BR-EDR-General-Format" class="headerlink" title="BR/EDR General Format"></a>BR/EDR General Format</h1><h2 id="Basic-Rate"><a href="#Basic-Rate" class="headerlink" title="Basic Rate"></a>Basic Rate</h2><center id="F-4"></center>
 
 <p><img src="br_pkt_format.png" alt="br_pkt_format"></p>
-<center style="color:#C0C0C0;">Figure 1.General Basic Rate packet format </center><br>
+<center style="color:#C0C0C0;">Figure 4.General Basic Rate packet format </center><br>
 
 <p>Each packet consists of 3 entities: the access code, the header, and the payload.</p>
 <ol>
@@ -349,10 +368,10 @@
 <p> Test Mode: AUX1.</p>
 </li>
 </ol>
-<h2 id="Enhanced-Date-Rate"><a href="#Enhanced-Date-Rate" class="headerlink" title="Enhanced Date Rate"></a>Enhanced Date Rate</h2><center id="F-4"></center>
+<h2 id="Enhanced-Date-Rate"><a href="#Enhanced-Date-Rate" class="headerlink" title="Enhanced Date Rate"></a>Enhanced Date Rate</h2><center id="F-5"></center>
 
 <p><img src="edr_pkt_format.png" alt="edr_pkt_format"></p>
-<center style="color:#C0C0C0;">Figure 2.General Enhanced Data Rate packet format </center><br>
+<center style="color:#C0C0C0;">Figure 5.General Enhanced Data Rate packet format </center><br>
 
 <p>The access code and packet header are identical in format and modulation to Basic Rate packets. Enhanced Data Rate packets have a guard time and synchronization sequence following the packet header. Following the payload are two trailer symbols.</p>
 <ol>
@@ -372,18 +391,18 @@
 <p>There are those packet types:</p>
 <p>eSCO: 2-EV3, 3-EV3, 2-EV5, 3-EV5.</p>
 <p>ACL: 2-DH1, 2-DH3, 2-DH5, 3-DH1, 3-DH3, 3-DH5.</p>
-<h1 id="BR-EDR-Packet-Header"><a href="#BR-EDR-Packet-Header" class="headerlink" title="BR/EDR Packet Header"></a>BR/EDR Packet Header</h1><center id="F-5"></center>
+<h1 id="BR-EDR-Packet-Header"><a href="#BR-EDR-Packet-Header" class="headerlink" title="BR/EDR Packet Header"></a>BR/EDR Packet Header</h1><center id="F-6"></center>
 
 <p><img src="header_format.png" alt="header_format"></p>
-<center style="color:#C0C0C0;">Figure 3.Header format </center><br>
+<center style="color:#C0C0C0;">Figure 6.Header format </center><br>
 
 
 <p>The total header, including the HEC, consists of 18 bits, and is encoded with a rate 1/3 FEC resulting in a 54-bit header.</p>
 <p>1/3 FEC: A simple 3-times repetition FEC code, The repetition code is implemented by repeating each bit three times.</p>
-<center id="F-6"></center>
+<center id="F-7"></center>
 
 <p><img src="1-3FEC.png" alt="1-3FEC"></p>
-<center style="color:#C0C0C0;">Figure 4.Bit-repetiton encoding schmem </center><br>
+<center style="color:#C0C0C0;">Figure 7.Bit-repetiton encoding schmem </center><br>
 
 <p>The header contains link control (LC) information and consists of 6 fields:</p>
 <ol>
@@ -401,7 +420,7 @@
 <p>APB: The logical transport that is used to transport L2CAP user traffic and some kinds of LMP traffic to all active devices in the piconet over the BR/EDR Controller.<br>Note: The FHS packet and the extended inquiry response packet are the only packets which may have an all-zero LT_ADDR but are not broadcast packets.</p>
 </blockquote>
 </li>
-<li><p>The primary LT_ADDR for ACL traffic, shall be assigned by the Central to the Peripheral when the Peripheral is activated. This is either at connection establishment or role switch, when the primary LT_ADDR is carried in the FHS payload (see <a href="#F-12">Figure 12</a>).</p>
+<li><p>The primary LT_ADDR for ACL traffic, shall be assigned by the Central to the Peripheral when the Peripheral is activated. This is either at connection establishment or role switch, when the primary LT_ADDR is carried in the FHS payload (see <a href="#F-13">Figure 13</a>).</p>
 </li>
 <li><p>The secondary LT_ADDR for eSCO traffic is assigned to the Peripheral for each eSCO logical transport in use in the piconet.</p>
 </li>
@@ -419,50 +438,50 @@
 <p>In the Bluetooth version 1.1 specification, LT_ADDR (then known as the active member device address) was used to identify the piconet member device associated with each transmission. Since this address is not easily extended to enable more logical links, the purpose of this field is repurposed for new functionality.</p>
 </blockquote>
 <h2 id="TYPE"><a href="#TYPE" class="headerlink" title="TYPE"></a>TYPE</h2><p>The 4-bit TYPE code can distinguish 16 different types of packets, but the packet types in BR/DER are more.</p>
-<center id="F-7"></center>
+<center id="F-8"></center>
 
 <p><img src="pkt_types.png" alt="pkt_types"></p>
-<center style="color:#C0C0C0;">Figure 5.Packets defined for synchronous, asynchronous, and CPB logical transport types </center><br>
+<center style="color:#C0C0C0;">Figure 8.Packets defined for synchronous, asynchronous, and CPB logical transport types </center><br>
 
 <p>First, it shall be determined whether the packet is sent on a SCO logical transport, an eSCO logical transport, an ACL logical transport, or a CPB logical transport.</p>
 <p>Second, it shall be determined whether Enhanced Data Rate has been enabled for the logical transport (ACL or eSCO) indicated by LT_ADDR.</p>
 <p>It can then be determined which type of SCO packet, eSCO packet, or ACL packet has been received.</p>
-<center id="F-8"></center>
-
-<p><img src="lc_pkt.png" alt="lc_pkt"></p>
-<center style="color:#C0C0C0;">Figure 6.Link control packets </center><br>
-
 <center id="F-9"></center>
 
-<p><img src="acl_pkt.png" alt="acl_pkt"></p>
-<center style="color:#C0C0C0;">Figure 7.ACL packets </center><br>
+<p><img src="lc_pkt.png" alt="lc_pkt"></p>
+<center style="color:#C0C0C0;">Figure 9.Link control packets </center><br>
 
 <center id="F-10"></center>
 
+<p><img src="acl_pkt.png" alt="acl_pkt"></p>
+<center style="color:#C0C0C0;">Figure 10.ACL packets </center><br>
+
+<center id="F-11"></center>
+
 <p><img src="sco_pkt.png" alt="sco_pkt"></p>
-<center style="color:#C0C0C0;">Figure 10.Synchronous packets </center><br>
+<center style="color:#C0C0C0;">Figure 11.Synchronous packets </center><br>
 
 <h2 id="FLOW"><a href="#FLOW" class="headerlink" title="FLOW"></a>FLOW</h2><p>The FLOW bit is used for flow control of packets over the ACL logical transport.</p>
 <p>FLOW = 0: A STOP indication for ACL packets. Packets including only link control information (POLL and NULL packets), SCO packets or eSCO packets can still be received.</p>
 <p>FLOW = 1: A GO indication for ACL packets.</p>
-<p>The FLOW bit is not used on the eSCO logical transport and shall be set to 1 on transmission and ignored upon reception (see <a href="#F-17">Figure 17</a>).</p>
+<p>The FLOW bit is not used on the eSCO logical transport and shall be set to 1 on transmission and ignored upon reception (see <a href="#F-18">Figure 18</a>).</p>
 <p>The FLOW bit is reserved for future use on the CPB logical transport.</p>
-<p>The FLOW bit in the synchronization train packet(DM3) and Extended inquiry response(EIR) (see <a href="#F-13">Figure 13</a>) shall be set to 0 upon transmission and ignored upon reception.</p>
-<p>The FLOW bit in the FHS is not defined in specification. It is set to 1 in packet capture (see <a href="#F-11">Figure 11</a> &amp; <a href="#F-12">Figure 12</a>).</p>
-<center id="F-11"></center>
-
-<p><img src="FHS_inq.png" alt="FHS_inq"></p>
-<center style="color:#C0C0C0;">Figure 11.Capture of FHS (inquiry) </center><br>
-
+<p>The FLOW bit in the synchronization train packet(DM3) and Extended inquiry response(EIR) (see <a href="#F-14">Figure 14</a>) shall be set to 0 upon transmission and ignored upon reception.</p>
+<p>The FLOW bit in the FHS is not defined in specification. It is set to 1 in packet capture (see <a href="#F-12">Figure 12</a> &amp; <a href="#F-13">Figure 13</a>).</p>
 <center id="F-12"></center>
 
-<p><img src="FHS_page.png" alt="FHS_page"></p>
-<center style="color:#C0C0C0;">Figure 12.Capture of FHS (page) </center><br>
+<p><img src="FHS_inq.png" alt="FHS_inq"></p>
+<center style="color:#C0C0C0;">Figure 12.Capture of FHS (inquiry) </center><br>
 
 <center id="F-13"></center>
 
+<p><img src="FHS_page.png" alt="FHS_page"></p>
+<center style="color:#C0C0C0;">Figure 13.Capture of FHS (page) </center><br>
+
+<center id="F-14"></center>
+
 <p><img src="EIR.png" alt="EIR"></p>
-<center style="color:#C0C0C0;">Figure 13.Capture of EIR </center><br>
+<center style="color:#C0C0C0;">Figure 14.Capture of EIR </center><br>
 
 <p>When no packet is received, or the received header is in error, a GO shall be assumed implicitly. In this case, the Peripheral can receive a new packet with CRC although its RX buffer is still not emptied. The Peripheral shall then return a NAK in response to this packet even if the packet passed the CRC check.</p>
 <h2 id="ARQN"><a href="#ARQN" class="headerlink" title="ARQN"></a>ARQN</h2><p>Stop-and-Wait ARQ is used in BR/EDR.</p>
@@ -470,12 +489,12 @@
 <p>For a packet reception to be successful, at least the HEC must pass. In addition, the MIC and CRC must pass when present.</p>
 <p>In the first POLL packet at the start of a new connection (as a result of a page, page scan, or role switch) the Central shall initialize the ARQN bit to NAK. The response packet sent by the Peripheral shall also have the ARQN bit set to NAK.</p>
 <p>The initial value of the Central’s eSCO ARQN at link set-up shall be NAK.</p>
-<p>The subsequent packets shall use the following rules, as shown in <a href="#F-14">Figure 14</a>, <a href="#F-15">Figure 15</a> and <a href="#F-16">Figure 16</a>.</p>
+<p>The subsequent packets shall use the following rules, as shown in <a href="#F-15">Figure 15</a>, <a href="#F-16">Figure 16</a> and <a href="#F-17">Figure 17</a>.</p>
 <ol>
 <li>Normally:<ol>
 <li>When successful reception of a CRC packet, the ARQN bit shall be set to ACK.</li>
-<li>When no access code is detected, HEC fails, CRC fails or MIC fails, the ARQN bit shall be set to NAK (see <a href="#F-20">Figure 20</a>).</li>
-<li>Packets that have correct HEC but that are addressed to other Peripherals, or packets other than DH, DM, DV or EV packets, shall not affect the ARQN bit(see <a href="#F-18">Figure 18</a>).</li>
+<li>When no access code is detected, HEC fails, CRC fails or MIC fails, the ARQN bit shall be set to NAK (see <a href="#F-21">Figure 21</a>).</li>
+<li>Packets that have correct HEC but that are addressed to other Peripherals, or packets other than DH, DM, DV or EV packets, shall not affect the ARQN bit(see <a href="#F-19">Figure 19</a>).</li>
 </ol>
 </li>
 <li>Except in the conditions below:<ol>
@@ -488,50 +507,50 @@
 </ol>
 </li>
 </ol>
-<center id="F-14"></center>
-
-<p><img src="protocol_ARQN_1.png" alt="protocol_ARQN_1"></p>
-<center style="color:#C0C0C0;">Figure 14.Stage 1 of the receive protocol determing the ARQN bit </center><br>
-
 <center id="F-15"></center>
 
-<p><img src="protocol_ARQN_2.png" alt="protocol_ARQN_2"></p>
-<center style="color:#C0C0C0;">Figure 15.Stage 2 (ACL) of the receive protocol determing the ARQN bit </center><br>
+<p><img src="protocol_ARQN_1.png" alt="protocol_ARQN_1"></p>
+<center style="color:#C0C0C0;">Figure 15.Stage 1 of the receive protocol determing the ARQN bit </center><br>
 
 <center id="F-16"></center>
 
+<p><img src="protocol_ARQN_2.png" alt="protocol_ARQN_2"></p>
+<center style="color:#C0C0C0;">Figure 16.Stage 2 (ACL) of the receive protocol determing the ARQN bit </center><br>
+
+<center id="F-17"></center>
+
 <p><img src="protocol_ARQN_3.png" alt="protocol_ARQN_3"></p>
-<center style="color:#C0C0C0;">Figure 16.Stage 3 (eSCO) of the receive protocol determing the ARQN bit </center><br>
+<center style="color:#C0C0C0;">Figure 17.Stage 3 (eSCO) of the receive protocol determing the ARQN bit </center><br>
 
 <p>For CPB: the ARQN bit is reserved for future use.</p>
 <h2 id="SEQN"><a href="#SEQN" class="headerlink" title="SEQN"></a>SEQN</h2><p>The SEQN bit provides a sequential numbering scheme to order the data packet stream. Normally, SEQN bit is alternated for every new CRC data payload transmission. In case of a retransmission, this bit shall not be changed so the destination can compare the SEQN bit with the previous SEQN value.</p>
 <p>The SEQN bit of the first CRC data packet at the start of a connection (as a result of page, page scan, or role switch) on both the Central and the Peripheral sides shall be set to 1.</p>
-<p>For ACL &amp; SCO(DV only): SEQN bit is alternated for every new CRC data payload transmission(see <a href="#F-18">Figure 18</a>).</p>
-<center id="F-17"></center>
-
-<p><img src="transmit_filter.png" alt="transmit_filter"></p>
-<center style="color:#C0C0C0;">Figure 17.Transmit filtering for packet with CRC </center><br>
-
+<p>For ACL &amp; SCO(DV only): SEQN bit is alternated for every new CRC data payload transmission(see <a href="#F-19">Figure 19</a>).</p>
 <center id="F-18"></center>
 
-<p><img src="ACL.png" alt="ACL"></p>
-<center style="color:#C0C0C0;">Figure 18.Capture of ACL </center><br>
+<p><img src="transmit_filter.png" alt="transmit_filter"></p>
+<center style="color:#C0C0C0;">Figure 18.Transmit filtering for packet with CRC </center><br>
 
-<p>For eSCO: the SEQN bit shall be toggled every eSCO window. The initial value of SEQN shall be zero(see <a href="#F-19">Figure 19</a> and <a href="#F-20">Figure 20</a>).</p>
 <center id="F-19"></center>
 
-<p><img src="eSCO.png" alt="eSCO"></p>
-<center style="color:#C0C0C0;">Figure 19.Capture of eSCO </center><br>
+<p><img src="ACL.png" alt="ACL"></p>
+<center style="color:#C0C0C0;">Figure 19.Capture of ACL </center><br>
 
+<p>For eSCO: the SEQN bit shall be toggled every eSCO window. The initial value of SEQN shall be zero(see <a href="#F-20">Figure 20</a> and <a href="#F-21">Figure 21</a>).</p>
 <center id="F-20"></center>
 
-<p><img src="eSCO_2.png" alt="eSCO_2"></p>
+<p><img src="eSCO.png" alt="eSCO"></p>
 <center style="color:#C0C0C0;">Figure 20.Capture of eSCO </center><br>
+
+<center id="F-21"></center>
+
+<p><img src="eSCO_2.png" alt="eSCO_2"></p>
+<center style="color:#C0C0C0;">Figure 21.Capture of eSCO </center><br>
 
 
 <p>For packet without CRC: the SEQN bit shall remain the same as it was in the previous packet.</p>
-<p>For FHS: the SEQN bit is not meaningful. This bit may be set to any value. It is set to 1 in a packet capture (see <a href="#F-11">Figure 11</a> &amp; <a href="#F-12">Figure 12</a>).</p>
-<p>For EIR: the SEQN bit is reserved for future use. It is set to 0 in a packet capture (see <a href="#F-13">Figure 13</a>).</p>
+<p>For FHS: the SEQN bit is not meaningful. This bit may be set to any value. It is set to 1 in a packet capture (see <a href="#F-12">Figure 12</a> &amp; <a href="#F-13">Figure 13</a>).</p>
+<p>For EIR: the SEQN bit is reserved for future use. It is set to 0 in a packet capture (see <a href="#F-14">Figure 14</a>).</p>
 <p>For CPB: the SEQN bit is reserved for future use.</p>
 <p>For APB: the SEQN of the first broadcast packet with a CRC shall be set to SEQN = 1 by the Central and shall be inverted for each new broadcast packet with CRC thereafter.</p>
 <h2 id="HEC"><a href="#HEC" class="headerlink" title="HEC"></a>HEC</h2><p>header-error-check is used to check the header integrity.</p>
@@ -543,28 +562,28 @@
 </ol>
 <h2 id="Questions"><a href="#Questions" class="headerlink" title="Questions"></a>Questions</h2><p>The useless field, somes are reserved for future use; somes are not meaningful, may be set to any value; somes shall be set to 1 and somes shall be set to 0. Why is there no uniform standard?</p>
 <h1 id="ARQ-in-BLE"><a href="#ARQ-in-BLE" class="headerlink" title="ARQ in BLE"></a>ARQ in BLE</h1><h2 id="Link-Layer-packet-format"><a href="#Link-Layer-packet-format" class="headerlink" title="Link Layer packet format"></a>Link Layer packet format</h2><p>In BLE Link Layer packet, there is no packet header. And there is always CRC in it.</p>
-<center id="F-21"></center>
-
-<p><img src="BLE_ll_uncoded_format.png" alt="BLE_ll_uncoded_format"></p>
-<center style="color:#C0C0C0;">Figure 21.Link Layer packet format for LE Uncoded PHYs </center><br>
-
 <center id="F-22"></center>
 
+<p><img src="BLE_ll_uncoded_format.png" alt="BLE_ll_uncoded_format"></p>
+<center style="color:#C0C0C0;">Figure 22.Link Layer packet format for LE Uncoded PHYs </center><br>
+
+<center id="F-23"></center>
+
 <p><img src="BLE_ll_coded_format.png" alt="BLE_ll_coded_format"></p>
-<center style="color:#C0C0C0;">Figure 22.Link Layer packet format for LE Coded PHYs </center><br>
+<center style="color:#C0C0C0;">Figure 23.Link Layer packet format for LE Coded PHYs </center><br>
 
 <h2 id="ARQ-in-BLE-1"><a href="#ARQ-in-BLE-1" class="headerlink" title="ARQ in BLE"></a>ARQ in BLE</h2><p>Stop-and-Wait ARQ is used in BLE, a 1-bit nextExpectedSeqNum(NESN) and 1-bit transmitSeqNum(SN) are in the payload header of Data Physical Channel PDU or CIS Data PDU.</p>
 <p>The initial value of SN and NESN are 0.</p>
-<center id="F-23"></center>
-
-<p><img src="BLE_ARQ.png" alt="BLE_ARQ"></p>
-<center style="color:#C0C0C0;">Figure 23.Transmit and receive SN and NESN flow diagram </center><br>
-
-<p>As <a href="#F-23">Figure 23</a>, The ARQ procotol works on all Data Physical Channel PDU or CIS Data PDU, included empty packet.</p>
 <center id="F-24"></center>
 
+<p><img src="BLE_ARQ.png" alt="BLE_ARQ"></p>
+<center style="color:#C0C0C0;">Figure 24.Transmit and receive SN and NESN flow diagram </center><br>
+
+<p>As <a href="#F-24">Figure 24</a>, The ARQ procotol works on all Data Physical Channel PDU or CIS Data PDU, included empty packet.</p>
+<center id="F-25"></center>
+
 <p><img src="BLE_ll.png" alt="BLE_ll"></p>
-<center style="color:#C0C0C0;">Figure 24.Capture of BLE Link Layer </center><br>
+<center style="color:#C0C0C0;">Figure 25.Capture of BLE Link Layer </center><br>
 
 <h2 id="Differs-with-BR-DER"><a href="#Differs-with-BR-DER" class="headerlink" title="Differs with BR/DER"></a>Differs with BR/DER</h2><p>Advantage：</p>
 <ol>
@@ -658,7 +677,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Data-Link-Control"><span class="nav-number">1.</span> <span class="nav-text">Data Link Control</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Flow-Ctrl"><span class="nav-number">1.1.</span> <span class="nav-text">Flow Ctrl</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Error-Ctrl"><span class="nav-number">1.2.</span> <span class="nav-text">Error Ctrl</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#BR-EDR-General-Format"><span class="nav-number">2.</span> <span class="nav-text">BR&#x2F;EDR General Format</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Basic-Rate"><span class="nav-number">2.1.</span> <span class="nav-text">Basic Rate</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Enhanced-Date-Rate"><span class="nav-number">2.2.</span> <span class="nav-text">Enhanced Date Rate</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#BR-EDR-Packet-Header"><span class="nav-number">3.</span> <span class="nav-text">BR&#x2F;EDR Packet Header</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#LT-ADDR"><span class="nav-number">3.1.</span> <span class="nav-text">LT_ADDR</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#TYPE"><span class="nav-number">3.2.</span> <span class="nav-text">TYPE</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#FLOW"><span class="nav-number">3.3.</span> <span class="nav-text">FLOW</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ARQN"><span class="nav-number">3.4.</span> <span class="nav-text">ARQN</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#SEQN"><span class="nav-number">3.5.</span> <span class="nav-text">SEQN</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#HEC"><span class="nav-number">3.6.</span> <span class="nav-text">HEC</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Questions"><span class="nav-number">3.7.</span> <span class="nav-text">Questions</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#ARQ-in-BLE"><span class="nav-number">4.</span> <span class="nav-text">ARQ in BLE</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Link-Layer-packet-format"><span class="nav-number">4.1.</span> <span class="nav-text">Link Layer packet format</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ARQ-in-BLE-1"><span class="nav-number">4.2.</span> <span class="nav-text">ARQ in BLE</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Differs-with-BR-DER"><span class="nav-number">4.3.</span> <span class="nav-text">Differs with BR&#x2F;DER</span></a></li></ol></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Data-Link-Control"><span class="nav-number">1.</span> <span class="nav-text">Data Link Control</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Flow-Ctrl"><span class="nav-number">1.1.</span> <span class="nav-text">Flow Ctrl</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Error-Ctrl"><span class="nav-number">1.2.</span> <span class="nav-text">Error Ctrl</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ARQ-Utilization"><span class="nav-number">1.3.</span> <span class="nav-text">ARQ Utilization</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#BR-EDR-General-Format"><span class="nav-number">2.</span> <span class="nav-text">BR&#x2F;EDR General Format</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Basic-Rate"><span class="nav-number">2.1.</span> <span class="nav-text">Basic Rate</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Enhanced-Date-Rate"><span class="nav-number">2.2.</span> <span class="nav-text">Enhanced Date Rate</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#BR-EDR-Packet-Header"><span class="nav-number">3.</span> <span class="nav-text">BR&#x2F;EDR Packet Header</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#LT-ADDR"><span class="nav-number">3.1.</span> <span class="nav-text">LT_ADDR</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#TYPE"><span class="nav-number">3.2.</span> <span class="nav-text">TYPE</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#FLOW"><span class="nav-number">3.3.</span> <span class="nav-text">FLOW</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ARQN"><span class="nav-number">3.4.</span> <span class="nav-text">ARQN</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#SEQN"><span class="nav-number">3.5.</span> <span class="nav-text">SEQN</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#HEC"><span class="nav-number">3.6.</span> <span class="nav-text">HEC</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Questions"><span class="nav-number">3.7.</span> <span class="nav-text">Questions</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#ARQ-in-BLE"><span class="nav-number">4.</span> <span class="nav-text">ARQ in BLE</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Link-Layer-packet-format"><span class="nav-number">4.1.</span> <span class="nav-text">Link Layer packet format</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ARQ-in-BLE-1"><span class="nav-number">4.2.</span> <span class="nav-text">ARQ in BLE</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Differs-with-BR-DER"><span class="nav-number">4.3.</span> <span class="nav-text">Differs with BR&#x2F;DER</span></a></li></ol></li></ol></div>
       </div>
       <!--/noindex-->
 
