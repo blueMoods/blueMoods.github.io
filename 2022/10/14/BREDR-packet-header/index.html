@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/head.jpg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/head.jpg">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/head.jpg">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"home.ustc.edu.cn","root":"/","scheme":"Gemini","version":"8.0.0-rc.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="本文介绍了经典蓝牙 packet header 的组成，各字段的含义和用法, 以及自动重发请求机制(ARQ)。 This Blob introduces the composition and meaning of the BR&#x2F;EDR packet header, and the automatic retransmission request(ARQ) mechanism.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Packet Header and ARQ in BR&#x2F;EDR">
+<meta property="og:url" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/index.html">
+<meta property="og:site_name" content="Baohd">
+<meta property="og:description" content="本文介绍了经典蓝牙 packet header 的组成，各字段的含义和用法, 以及自动重发请求机制(ARQ)。 This Blob introduces the composition and meaning of the BR&#x2F;EDR packet header, and the automatic retransmission request(ARQ) mechanism.">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/stop-and-wait_ARQ.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/sliding_window_ARQ.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/br_pkt_format.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/edr_pkt_format.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/header_format.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/1-3FEC.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/pkt_types.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/lc_pkt.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/acl_pkt.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/sco_pkt.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/FHS_inq.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/FHS_page.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/EIR.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/protocol_ARQN_1.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/protocol_ARQN_2.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/protocol_ARQN_3.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/transmit_filter.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/ACL.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/eSCO.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/eSCO_2.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/BLE_ll_uncoded_format.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/BLE_ll_coded_format.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/BLE_ARQ.png">
+<meta property="og:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/BLE_ll.png">
+<meta property="article:published_time" content="2022-10-14T09:01:51.000Z">
+<meta property="article:modified_time" content="2022-10-19T00:50:55.170Z">
+<meta property="article:author" content="Baohd&lt;br&gt;鲍宏德">
+<meta property="article:tag" content="蓝牙">
+<meta property="article:tag" content="协议">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/stop-and-wait_ARQ.png">
+
+<link rel="canonical" href="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Packet Header and ARQ in BR/EDR | Baohd</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line toggle-line-first"></span>
+        <span class="toggle-line toggle-line-middle"></span>
+        <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Baohd</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">宏博江山八万里 德馨古今九百川</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签<span class="badge">5</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类<span class="badge">3</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">7</span></a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://home.ustc.edu.cn/~baohd/2022/10/14/BREDR-packet-header/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/head.jpg">
+      <meta itemprop="name" content="Baohd<br>鲍宏德">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Baohd">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Packet Header and ARQ in BR/EDR
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-10-14 17:01:51" itemprop="dateCreated datePublished" datetime="2022-10-14T17:01:51+08:00">2022-10-14</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2022-10-19 08:50:55" itemprop="dateModified" datetime="2022-10-19T08:50:55+08:00">2022-10-19</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E9%80%9A%E4%BF%A1/" itemprop="url" rel="index"><span itemprop="name">通信</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>本文介绍了经典蓝牙 packet header 的组成，各字段的含义和用法, 以及自动重发请求机制(ARQ)。</p>
+<p>This Blob introduces the composition and meaning of the BR/EDR packet header, and the automatic retransmission request(ARQ) mechanism.</p>
+<a id="more"></a>
+
+<h1 id="Data-Link-Control"><a href="#Data-Link-Control" class="headerlink" title="Data Link Control"></a>Data Link Control</h1><h2 id="Flow-Ctrl"><a href="#Flow-Ctrl" class="headerlink" title="Flow Ctrl"></a>Flow Ctrl</h2><p>There are 3 types of flow control (see <a href="/2020/08/20/flow-ctrl/" title="Flow Control">Flow Control</a>).</p>
+<ol>
+<li><p>Stop-and-Wait flow control</p>
+</li>
+<li><p>Sliding-Window flow control</p>
+</li>
+<li><p>reservation buffer method flow control</p>
+<p> This method is used on reliable connections, is not suitable here.</p>
+</li>
+</ol>
+<h2 id="Error-Ctrl"><a href="#Error-Ctrl" class="headerlink" title="Error Ctrl"></a>Error Ctrl</h2><p>There are 3 types of automatic repeat request(ARQ).</p>
+<ol>
+<li>Stop-and-Wait ARQ</li>
+<li>Go-Back-N ARQ</li>
+<li>Selective-Reject ARQ</li>
+</ol>
+<p>Stop-and-Wait ARQ is works on Stop-and-Wait flow control, Go-Back-N ARQ and Selective-Reject ARQ are work on Sliding-Window flow control.</p>
+<center id="F-1"></center>
+
+<p><img src="stop-and-wait_ARQ.png" alt="stop-and-wait_ARQ"></p>
+<center style="color:#C0C0C0;">Figure 1.stop-and-wait ARQ </center><br>
+
+<center id="F-2"></center>
+
+<p><img src="sliding_window_ARQ.png" alt="sliding_window_ARQ"></p>
+<center style="color:#C0C0C0;">Figure 2.sliding-window ARQ </center><br>
+
+<blockquote>
+<p>RR: receive ready, e.g. RR i means that all frames through  i-1 are acknowledged.</p>
+</blockquote>
+<blockquote>
+<p>P-bit: Protect timer bit, when P-bit timer timeout, sending <code>RR(p bit = 1)</code> to request a <code>RR</code>.</p>
+</blockquote>
+<blockquote>
+<p>REJ: reject a frame, request re-transmit it and all the frames after it.</p>
+</blockquote>
+<blockquote>
+<p>SREJ: reject a frame, only request re-transmit it.</p>
+</blockquote>
+<p>In Stop-and-Wait ARQ, frame, ACK may be damaged.</p>
+<ol>
+<li><p>Damaged frame</p>
+<p> B will ACK the old frame and A re-transmit it, or A will re-transmit it after timeout.</p>
+</li>
+<li><p>Damaged ACK</p>
+<p> A will re-transmit it immediately or after timeout.</p>
+</li>
+</ol>
+<p>In sliding-window ARQ, frame, RR and REJ/SREJ may be damaged.</p>
+<ol>
+<li><p>Damaged frame</p>
+<ol>
+<li>B receives <code>frame i+1</code> without <code>frame i</code>, will send <code>REJ i</code> or <code>SREJ i</code>.</li>
+<li>A send <code>frame i</code> without any additional frames, B receives nothing. A’s P-bit timer will expire, will send <code>RR(p bit = 1)</code> to request a <code>RR</code>.</li>
+</ol>
+</li>
+<li><p>Damaged RR</p>
+<ol>
+<li>B send <code>RR i</code> but suffers an error in transmit. Before A’s P-bit timer expires, A receives <code>RR i+n</code>. In this case, should do nothing else.</li>
+<li>A’s P-bit timer expires, will send <code>RR(p bit = 1)</code> to request a <code>RR</code>.</li>
+</ol>
+</li>
+<li><p>Damaged REJ/SREJ</p>
+<p> This is equivalent to case 1.ii.</p>
+</li>
+</ol>
+<p>Selective-Reject ARQ will appear to be more efficient than Go-Back-N ARQ, but it need a buffer large enough to save frames.</p>
+<h1 id="BR-EDR-General-Format"><a href="#BR-EDR-General-Format" class="headerlink" title="BR/EDR General Format"></a>BR/EDR General Format</h1><h2 id="Basic-Rate"><a href="#Basic-Rate" class="headerlink" title="Basic Rate"></a>Basic Rate</h2><center id="F-3"></center>
+
+<p><img src="br_pkt_format.png" alt="br_pkt_format"></p>
+<center style="color:#C0C0C0;">Figure 1.General Basic Rate packet format </center><br>
+
+<p>Each packet consists of 3 entities: the access code, the header, and the payload.</p>
+<ol>
+<li><p>Access code</p>
+<p> The access code is used for synchronization, DC offset compensation and identification. The access code identifies all packets exchanged on a physical channel: all packets sent in the same physical channel are preceded by the same access code.</p>
+</li>
+<li><p>Header</p>
+<p> The header contains link control (LC) information.</p>
+</li>
+<li><p>Payload</p>
+<p> The synchronous data field and the asynchronous data field.</p>
+</li>
+</ol>
+<p>A packet may consist of:</p>
+<ol>
+<li><p>the shortened access code only.</p>
+<p> ID.</p>
+</li>
+<li><p>the access code and the packet header</p>
+<p> NULL, POLL.</p>
+</li>
+<li><p>the access code, the packet header and the payload.</p>
+<p> Common: FHS, DM1.</p>
+<p> SCO: HV1, HV2, HV3, DV.</p>
+<p> eSCO: EV3, EV4, EV5.</p>
+<p> ACL: DM1, DH1, DM3, DH3, DM5, DH5.</p>
+<p> Test Mode: AUX1.</p>
+</li>
+</ol>
+<h2 id="Enhanced-Date-Rate"><a href="#Enhanced-Date-Rate" class="headerlink" title="Enhanced Date Rate"></a>Enhanced Date Rate</h2><center id="F-4"></center>
+
+<p><img src="edr_pkt_format.png" alt="edr_pkt_format"></p>
+<center style="color:#C0C0C0;">Figure 2.General Enhanced Data Rate packet format </center><br>
+
+<p>The access code and packet header are identical in format and modulation to Basic Rate packets. Enhanced Data Rate packets have a guard time and synchronization sequence following the packet header. Following the payload are two trailer symbols.</p>
+<ol>
+<li><p>Guard time</p>
+<p> The guard time is defined as the period starting at the end of the last GFSK symbol of the header and ending at the start of the reference symbol of the synchronization sequence. The length of the guard time shall be between 4.75 us and 5.25 us.</p>
+<p> This filed is used by hardware to switch between the CFSK and DPSK.</p>
+</li>
+<li><p>Synchronization sequence</p>
+<p> The length of the synchronization sequence is 11 us (11 DPSK symbols) and consists of a reference symbol (with arbitrary phase) followed by ten DPSK symbols.</p>
+<p> This filed is used to synchronize for payload.</p>
+</li>
+<li><p>Trailer symbols</p>
+<p> The trailer bits shall be all zero.</p>
+<p> i.e. {00, 00} for the π/4-DQPSK and {000, 000} for the 8DPSK.</p>
+</li>
+</ol>
+<p>There are those packet types:</p>
+<p>eSCO: 2-EV3, 3-EV3, 2-EV5, 3-EV5.</p>
+<p>ACL: 2-DH1, 2-DH3, 2-DH5, 3-DH1, 3-DH3, 3-DH5.</p>
+<h1 id="BR-EDR-Packet-Header"><a href="#BR-EDR-Packet-Header" class="headerlink" title="BR/EDR Packet Header"></a>BR/EDR Packet Header</h1><center id="F-5"></center>
+
+<p><img src="header_format.png" alt="header_format"></p>
+<center style="color:#C0C0C0;">Figure 3.Header format </center><br>
+
+
+<p>The total header, including the HEC, consists of 18 bits, and is encoded with a rate 1/3 FEC resulting in a 54-bit header.</p>
+<p>1/3 FEC: A simple 3-times repetition FEC code, The repetition code is implemented by repeating each bit three times.</p>
+<center id="F-6"></center>
+
+<p><img src="1-3FEC.png" alt="1-3FEC"></p>
+<center style="color:#C0C0C0;">Figure 4.Bit-repetiton encoding schmem </center><br>
+
+<p>The header contains link control (LC) information and consists of 6 fields:</p>
+<ol>
+<li>LT_ADDR: 3-bit logical transport address</li>
+<li>TYPE: 4-bit type code</li>
+<li>FLOW: 1-bit flow control</li>
+<li>ARQN: 1-bit acknowledge indication</li>
+<li>SEQN: 1-bit sequence number</li>
+<li>HEC: 8-bit header error check</li>
+</ol>
+<h2 id="LT-ADDR"><a href="#LT-ADDR" class="headerlink" title="LT_ADDR"></a>LT_ADDR</h2><p>Each Peripheral active in a piconet is assigned a primary 3-bit logical transport address (LT_ADDR). It will be used for exactly one of the four purposes:</p>
+<ol>
+<li><p>The all-zero LT_ADDR is reserved for APB(Active Peripheral Broadcast) broadcast messages.</p>
+<blockquote>
+<p>APB: The logical transport that is used to transport L2CAP user traffic and some kinds of LMP traffic to all active devices in the piconet over the BR/EDR Controller.<br>Note: The FHS packet and the extended inquiry response packet are the only packets which may have an all-zero LT_ADDR but are not broadcast packets.</p>
+</blockquote>
+</li>
+<li><p>The primary LT_ADDR for ACL traffic, shall be assigned by the Central to the Peripheral when the Peripheral is activated. This is either at connection establishment or role switch, when the primary LT_ADDR is carried in the FHS payload (see <a href="#F-12">Figure 12</a>).</p>
+</li>
+<li><p>The secondary LT_ADDR for eSCO traffic is assigned to the Peripheral for each eSCO logical transport in use in the piconet.</p>
+</li>
+<li><p>For CPB logical transport. The CPB(Connectionless Peripheral Broadcast) logical transport uses a single non-zero LT_ADDR.</p>
+<blockquote>
+<p>The CPB logical transport is used to transport profile broadcast data from a Transmitter (Central) to multiple Receivers (Peripherals).</p>
+</blockquote>
+</li>
+</ol>
+<p>This is the reason why it support no more than 7 Peripheral in a piconet.</p>
+<p>Pay attention to that: allocating a secondary LT_ADDR for an eSCO logical transport, or reserving an LT_ADDR for the CPB logical transport, reduces the maximum number of active Peripherals possible in the piconet.</p>
+<p>A peripheral may be in multiple piconets，with no upper limit.</p>
+<p>Why does SCO use primary LT_ADDR rather than secondary LT_ADDR?</p>
+<blockquote>
+<p>In the Bluetooth version 1.1 specification, LT_ADDR (then known as the active member device address) was used to identify the piconet member device associated with each transmission. Since this address is not easily extended to enable more logical links, the purpose of this field is repurposed for new functionality.</p>
+</blockquote>
+<h2 id="TYPE"><a href="#TYPE" class="headerlink" title="TYPE"></a>TYPE</h2><p>The 4-bit TYPE code can distinguish 16 different types of packets, but the packet types in BR/DER are more.</p>
+<center id="F-7"></center>
+
+<p><img src="pkt_types.png" alt="pkt_types"></p>
+<center style="color:#C0C0C0;">Figure 5.Packets defined for synchronous, asynchronous, and CPB logical transport types </center><br>
+
+<p>First, it shall be determined whether the packet is sent on a SCO logical transport, an eSCO logical transport, an ACL logical transport, or a CPB logical transport.</p>
+<p>Second, it shall be determined whether Enhanced Data Rate has been enabled for the logical transport (ACL or eSCO) indicated by LT_ADDR.</p>
+<p>It can then be determined which type of SCO packet, eSCO packet, or ACL packet has been received.</p>
+<center id="F-8"></center>
+
+<p><img src="lc_pkt.png" alt="lc_pkt"></p>
+<center style="color:#C0C0C0;">Figure 6.Link control packets </center><br>
+
+<center id="F-9"></center>
+
+<p><img src="acl_pkt.png" alt="acl_pkt"></p>
+<center style="color:#C0C0C0;">Figure 7.ACL packets </center><br>
+
+<center id="F-10"></center>
+
+<p><img src="sco_pkt.png" alt="sco_pkt"></p>
+<center style="color:#C0C0C0;">Figure 10.Synchronous packets </center><br>
+
+<h2 id="FLOW"><a href="#FLOW" class="headerlink" title="FLOW"></a>FLOW</h2><p>The FLOW bit is used for flow control of packets over the ACL logical transport.</p>
+<p>FLOW = 0: A STOP indication for ACL packets. Packets including only link control information (POLL and NULL packets), SCO packets or eSCO packets can still be received.</p>
+<p>FLOW = 1: A GO indication for ACL packets.</p>
+<p>The FLOW bit is not used on the eSCO logical transport and shall be set to 1 on transmission and ignored upon reception (see <a href="#F-17">Figure 17</a>).</p>
+<p>The FLOW bit is reserved for future use on the CPB logical transport.</p>
+<p>The FLOW bit in the synchronization train packet(DM3) and Extended inquiry response(EIR) (see <a href="#F-13">Figure 13</a>) shall be set to 0 upon transmission and ignored upon reception.</p>
+<p>The FLOW bit in the FHS is not defined in specification. It is set to 1 in packet capture (see <a href="#F-11">Figure 11</a> &amp; <a href="#F-12">Figure 12</a>).</p>
+<center id="F-11"></center>
+
+<p><img src="FHS_inq.png" alt="FHS_inq"></p>
+<center style="color:#C0C0C0;">Figure 11.Capture of FHS (inquiry) </center><br>
+
+<center id="F-12"></center>
+
+<p><img src="FHS_page.png" alt="FHS_page"></p>
+<center style="color:#C0C0C0;">Figure 12.Capture of FHS (page) </center><br>
+
+<center id="F-13"></center>
+
+<p><img src="EIR.png" alt="EIR"></p>
+<center style="color:#C0C0C0;">Figure 13.Capture of EIR </center><br>
+
+<p>When no packet is received, or the received header is in error, a GO shall be assumed implicitly. In this case, the Peripheral can receive a new packet with CRC although its RX buffer is still not emptied. The Peripheral shall then return a NAK in response to this packet even if the packet passed the CRC check.</p>
+<h2 id="ARQN"><a href="#ARQN" class="headerlink" title="ARQN"></a>ARQN</h2><p>Stop-and-Wait ARQ is used in BR/EDR.</p>
+<p>The 1-bit acknowledgment indication ARQN is used to inform the source of a successful transfer of payload data with CRC, and can be positive acknowledge ACK(1) or negative acknowledge NAK(0).</p>
+<p>For a packet reception to be successful, at least the HEC must pass. In addition, the MIC and CRC must pass when present.</p>
+<p>In the first POLL packet at the start of a new connection (as a result of a page, page scan, or role switch) the Central shall initialize the ARQN bit to NAK. The response packet sent by the Peripheral shall also have the ARQN bit set to NAK.</p>
+<p>The initial value of the Central’s eSCO ARQN at link set-up shall be NAK.</p>
+<p>The subsequent packets shall use the following rules, as shown in <a href="#F-14">Figure 14</a>, <a href="#F-15">Figure 15</a> and <a href="#F-16">Figure 16</a>.</p>
+<ol>
+<li>Normally:<ol>
+<li>When successful reception of a CRC packet, the ARQN bit shall be set to ACK.</li>
+<li>When no access code is detected, HEC fails, CRC fails or MIC fails, the ARQN bit shall be set to NAK (see <a href="#F-20">Figure 20</a>).</li>
+<li>Packets that have correct HEC but that are addressed to other Peripherals, or packets other than DH, DM, DV or EV packets, shall not affect the ARQN bit(see <a href="#F-18">Figure 18</a>).</li>
+</ol>
+</li>
+<li>Except in the conditions below:<ol>
+<li>In eSCO the ARQN bit may be set to ACK even when the CRC on an EV packet has failed thus enabling delivery of erroneous packets.</li>
+<li>For ACL packets, if a CRC packet with a correct header has the same SEQN as the previously received CRC packet, the ARQN bit shall be set to ACK and the payload shall be ignored without checking the CRC.</li>
+<li>If the Peripheral receives a packet other than DH, DM, DV or EV with the SEQN bit inverted from that in the last header successfully received on the same LT_ADDR, it shall set the ARQN bit to NAK until a DH, DM, DV or EV packet is successfully received.<ul>
+<li>Only Peripheral? In my opinion Central is the same.</li>
+</ul>
+</li>
+</ol>
+</li>
+</ol>
+<center id="F-14"></center>
+
+<p><img src="protocol_ARQN_1.png" alt="protocol_ARQN_1"></p>
+<center style="color:#C0C0C0;">Figure 14.Stage 1 of the receive protocol determing the ARQN bit </center><br>
+
+<center id="F-15"></center>
+
+<p><img src="protocol_ARQN_2.png" alt="protocol_ARQN_2"></p>
+<center style="color:#C0C0C0;">Figure 15.Stage 2 (ACL) of the receive protocol determing the ARQN bit </center><br>
+
+<center id="F-16"></center>
+
+<p><img src="protocol_ARQN_3.png" alt="protocol_ARQN_3"></p>
+<center style="color:#C0C0C0;">Figure 16.Stage 3 (eSCO) of the receive protocol determing the ARQN bit </center><br>
+
+<p>For CPB: the ARQN bit is reserved for future use.</p>
+<h2 id="SEQN"><a href="#SEQN" class="headerlink" title="SEQN"></a>SEQN</h2><p>The SEQN bit provides a sequential numbering scheme to order the data packet stream. Normally, SEQN bit is alternated for every new CRC data payload transmission. In case of a retransmission, this bit shall not be changed so the destination can compare the SEQN bit with the previous SEQN value.</p>
+<p>The SEQN bit of the first CRC data packet at the start of a connection (as a result of page, page scan, or role switch) on both the Central and the Peripheral sides shall be set to 1.</p>
+<p>For ACL &amp; SCO(DV only): SEQN bit is alternated for every new CRC data payload transmission(see <a href="#F-18">Figure 18</a>).</p>
+<center id="F-17"></center>
+
+<p><img src="transmit_filter.png" alt="transmit_filter"></p>
+<center style="color:#C0C0C0;">Figure 17.Transmit filtering for packet with CRC </center><br>
+
+<center id="F-18"></center>
+
+<p><img src="ACL.png" alt="ACL"></p>
+<center style="color:#C0C0C0;">Figure 18.Capture of ACL </center><br>
+
+<p>For eSCO: the SEQN bit shall be toggled every eSCO window. The initial value of SEQN shall be zero(see <a href="#F-19">Figure 19</a> and <a href="#F-20">Figure 20</a>).</p>
+<center id="F-19"></center>
+
+<p><img src="eSCO.png" alt="eSCO"></p>
+<center style="color:#C0C0C0;">Figure 19.Capture of eSCO </center><br>
+
+<center id="F-20"></center>
+
+<p><img src="eSCO_2.png" alt="eSCO_2"></p>
+<center style="color:#C0C0C0;">Figure 20.Capture of eSCO </center><br>
+
+
+<p>For packet without CRC: the SEQN bit shall remain the same as it was in the previous packet.</p>
+<p>For FHS: the SEQN bit is not meaningful. This bit may be set to any value. It is set to 1 in a packet capture (see <a href="#F-11">Figure 11</a> &amp; <a href="#F-12">Figure 12</a>).</p>
+<p>For EIR: the SEQN bit is reserved for future use. It is set to 0 in a packet capture (see <a href="#F-13">Figure 13</a>).</p>
+<p>For CPB: the SEQN bit is reserved for future use.</p>
+<p>For APB: the SEQN of the first broadcast packet with a CRC shall be set to SEQN = 1 by the Central and shall be inverted for each new broadcast packet with CRC thereafter.</p>
+<h2 id="HEC"><a href="#HEC" class="headerlink" title="HEC"></a>HEC</h2><p>header-error-check is used to check the header integrity.</p>
+<p>The HEC is an 8-bit word, calculated with the 10 header bits and 8-bit default value. The 8-bit default value is as bellow:</p>
+<ol>
+<li>For FHS packets sent in Central Response substate, the Peripheral upper address part (UAP) shall be used.</li>
+<li>For FHS packets and extended inquiry response packets sent in Inquiry Response substate, the default check initialization (DCI: defined to be 0x00) shall be used.</li>
+<li>In all other cases, the UAP of the Central shall be used.</li>
+</ol>
+<h2 id="Questions"><a href="#Questions" class="headerlink" title="Questions"></a>Questions</h2><p>The useless field, somes are reserved for future use; somes are not meaningful, may be set to any value; somes shall be set to 1 and somes shall be set to 0. Why is there no uniform standard?</p>
+<h1 id="ARQ-in-BLE"><a href="#ARQ-in-BLE" class="headerlink" title="ARQ in BLE"></a>ARQ in BLE</h1><h2 id="Link-Layer-packet-format"><a href="#Link-Layer-packet-format" class="headerlink" title="Link Layer packet format"></a>Link Layer packet format</h2><p>In BLE Link Layer packet, there is no packet header. And there is always CRC in it.</p>
+<center id="F-21"></center>
+
+<p><img src="BLE_ll_uncoded_format.png" alt="BLE_ll_uncoded_format"></p>
+<center style="color:#C0C0C0;">Figure 21.Link Layer packet format for LE Uncoded PHYs </center><br>
+
+<center id="F-22"></center>
+
+<p><img src="BLE_ll_coded_format.png" alt="BLE_ll_coded_format"></p>
+<center style="color:#C0C0C0;">Figure 22.Link Layer packet format for LE Coded PHYs </center><br>
+
+<h2 id="ARQ-in-BLE-1"><a href="#ARQ-in-BLE-1" class="headerlink" title="ARQ in BLE"></a>ARQ in BLE</h2><p>Stop-and-Wait ARQ is used in BLE, a 1-bit nextExpectedSeqNum(NESN) and 1-bit transmitSeqNum(SN) are in the payload header of Data Physical Channel PDU or CIS Data PDU.</p>
+<p>The initial value of SN and NESN are 0.</p>
+<center id="F-23"></center>
+
+<p><img src="BLE_ARQ.png" alt="BLE_ARQ"></p>
+<center style="color:#C0C0C0;">Figure 23.Transmit and receive SN and NESN flow diagram </center><br>
+
+<p>As <a href="#F-23">Figure 23</a>, The ARQ procotol works on all Data Physical Channel PDU or CIS Data PDU, included empty packet.</p>
+<center id="F-24"></center>
+
+<p><img src="BLE_ll.png" alt="BLE_ll"></p>
+<center style="color:#C0C0C0;">Figure 24.Capture of BLE Link Layer </center><br>
+
+<h2 id="Differs-with-BR-DER"><a href="#Differs-with-BR-DER" class="headerlink" title="Differs with BR/DER"></a>Differs with BR/DER</h2><p>Advantage：</p>
+<ol>
+<li>There is always CRC in BLE Link Layer packet. So ARQ works on all BLE Link Layer packets. But ARQ works on olny some BR/EDR packet which containing CRC.</li>
+<li>BR/EDR’s SEQN is same with BLE’s SN.BR/EDR’s ARQN can be positive acknowledge ACK(1) or negative acknowledge NAK(0), BLE’s NESN is nextExpectedSeqNum, it is easier to handle packet loss and damaged packet.</li>
+<li>BR/EDR’s ARQ protocol works before receiving packet, need to handle multiple situations such as not trigger, HEC error, CRC error… BLE’s ARQ protocol only works after CRC check.</li>
+</ol>
+<p>Disadvantage：</p>
+<ol>
+<li>Empty package of BR/EDR is shorter than BLE’s(without CRC).</li>
+<li>A new packet can be send only after the previous empty packet be ACK in BLE, it can be send immediately if the previous packet is POLL or NULL.</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E8%93%9D%E7%89%99/" rel="tag"># 蓝牙</a>
+              <a href="/tags/%E5%8D%8F%E8%AE%AE/" rel="tag"># 协议</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/09/25/blog-guide/" rel="prev" title="搭建个人博客">
+      <i class="fa fa-chevron-left"></i> 搭建个人博客
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Data-Link-Control"><span class="nav-number">1.</span> <span class="nav-text">Data Link Control</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Flow-Ctrl"><span class="nav-number">1.1.</span> <span class="nav-text">Flow Ctrl</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Error-Ctrl"><span class="nav-number">1.2.</span> <span class="nav-text">Error Ctrl</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#BR-EDR-General-Format"><span class="nav-number">2.</span> <span class="nav-text">BR&#x2F;EDR General Format</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Basic-Rate"><span class="nav-number">2.1.</span> <span class="nav-text">Basic Rate</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Enhanced-Date-Rate"><span class="nav-number">2.2.</span> <span class="nav-text">Enhanced Date Rate</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#BR-EDR-Packet-Header"><span class="nav-number">3.</span> <span class="nav-text">BR&#x2F;EDR Packet Header</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#LT-ADDR"><span class="nav-number">3.1.</span> <span class="nav-text">LT_ADDR</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#TYPE"><span class="nav-number">3.2.</span> <span class="nav-text">TYPE</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#FLOW"><span class="nav-number">3.3.</span> <span class="nav-text">FLOW</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ARQN"><span class="nav-number">3.4.</span> <span class="nav-text">ARQN</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#SEQN"><span class="nav-number">3.5.</span> <span class="nav-text">SEQN</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#HEC"><span class="nav-number">3.6.</span> <span class="nav-text">HEC</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Questions"><span class="nav-number">3.7.</span> <span class="nav-text">Questions</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#ARQ-in-BLE"><span class="nav-number">4.</span> <span class="nav-text">ARQ in BLE</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Link-Layer-packet-format"><span class="nav-number">4.1.</span> <span class="nav-text">Link Layer packet format</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ARQ-in-BLE-1"><span class="nav-number">4.2.</span> <span class="nav-text">ARQ in BLE</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Differs-with-BR-DER"><span class="nav-number">4.3.</span> <span class="nav-text">Differs with BR&#x2F;DER</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Baohd<br>鲍宏德"
+      src="/images/head.jpg">
+  <p class="site-author-name" itemprop="name">Baohd<br>鲍宏德</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">7</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/blueMoods" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;blueMoods" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:baohd@mail.ustc.edu.cn" title="E-Mail → mailto:baohd@mail.ustc.edu.cn" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Baohd<br>鲍宏德</span>
+</div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
